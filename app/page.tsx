@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
+import { toPng } from "html-to-image";
 import {
   addEdge,
   Background,
@@ -96,6 +97,7 @@ function DecisionCanvas() {
   const [projectName, setProjectName] = useState("Finance Revenue Pulse");
   const [latencyTarget, setLatencyTarget] = useState(30);
   const [monthlyBudget, setMonthlyBudget] = useState(4500);
+  const [exportState, setExportState] = useState<"idle" | "png" | "copied">("idle");
 
   const totalLatency = useMemo(() => nodes.reduce((sum, node) => sum + node.data.latency, 0), [nodes]);
   const totalCost = useMemo(() => nodes.reduce((sum, node) => sum + node.data.cost, 0), [nodes]);
@@ -158,12 +160,63 @@ function DecisionCanvas() {
     setMonthlyBudget(4500);
   };
 
+  const downloadPng = async () => {
+    const canvas = document.querySelector<HTMLElement>(".flow-area");
+    if (!canvas) return;
+    setExportState("png");
+    try {
+      const dataUrl = await toPng(canvas, {
+        cacheBust: true,
+        pixelRatio: 2,
+        backgroundColor: "#f7f7fc",
+      });
+      const link = document.createElement("a");
+      link.download = `${projectName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "decla-canvas"}.png`;
+      link.href = dataUrl;
+      link.click();
+    } finally {
+      setExportState("idle");
+    }
+  };
+
+  const copyMarkdown = async () => {
+    const nodeName = new Map(nodes.map((node) => [node.id, node.data.label]));
+    const stageRows = nodes
+      .map((node) => `| ${node.data.label} | ${kindLabels[node.data.kind]} | ${node.data.platform} | ${node.data.latency} min | $${node.data.cost.toLocaleString()} |`)
+      .join("\n");
+    const connections = edges
+      .map((edge) => `- ${nodeName.get(edge.source) ?? edge.source} → ${nodeName.get(edge.target) ?? edge.target}`)
+      .join("\n");
+    const markdown = `# ${projectName}
+
+## Decision Latency Intelligence
+
+| Guardrail | Target | Current | Variance |
+|---|---:|---:|---:|
+| Required freshness | ${latencyTarget} min | ${totalLatency} min | ${latencyVariance > 0 ? "+" : ""}${latencyVariance} min |
+| Monthly decision budget | $${monthlyBudget.toLocaleString()} | $${totalCost.toLocaleString()} | ${budgetVariance > 0 ? "+" : budgetVariance < 0 ? "−" : ""}$${Math.abs(budgetVariance).toLocaleString()} |
+
+## Architecture stages
+
+| Stage | Type | Platform | Latency | Monthly cost |
+|---|---|---|---:|---:|
+${stageRows}
+
+## Connections
+
+${connections || "_No connections_"}
+`;
+    await navigator.clipboard.writeText(markdown);
+    setExportState("copied");
+    window.setTimeout(() => setExportState("idle"), 1800);
+  };
+
   return (
     <main className="app-shell">
       <header className="topbar">
         <div className="brand">
           <span className="brand-mark">D</span>
-          <div><strong>DeCLA</strong><small>Decision Canvas</small></div>
+          <div><strong>DeCLA</strong><small>Decision Latency Intelligence</small></div>
         </div>
         <div className="project-title">
           <span className="status-dot" />
@@ -172,16 +225,17 @@ function DecisionCanvas() {
         </div>
         <div className="top-actions">
           <button className="ghost-button" onClick={resetCanvas}>Reset</button>
-          <button className="share-button">Share canvas</button>
+          <button className="export-button" onClick={copyMarkdown}><span>⧉</span>{exportState === "copied" ? "Copied" : "Copy Markdown"}</button>
+          <button className="share-button" onClick={downloadPng}><span>↓</span>{exportState === "png" ? "Exporting…" : "Download PNG"}</button>
           <div className="avatar">KG</div>
         </div>
       </header>
 
       <section className="guardrails">
         <div className="guardrail-intro">
-          <span>PROJECT GUARDRAILS</span>
-          <strong>Define success before architecture</strong>
-          <small>Every stage is measured against these targets.</small>
+          <span>PROJECT TARGETS</span>
+          <strong>Decision guardrails</strong>
+          <small>Architecture measured live</small>
         </div>
         <label className="goal-field">
           <span>Required freshness</span>
@@ -206,7 +260,7 @@ function DecisionCanvas() {
       </section>
 
       <section className="summary-strip">
-        <div className="summary-intro"><span>LIVE ARCHITECTURE</span><strong>Source → consumption</strong></div>
+        <div className="summary-intro"><span>LIVE PATH</span><strong>Source → decision</strong></div>
         <div className="metric"><span>Current latency</span><strong>{totalLatency} min</strong><small>{latencyTarget ? Math.round((totalLatency / latencyTarget) * 100) : 0}% of target</small></div>
         <div className="metric"><span>Current monthly cost</span><strong>${totalCost.toLocaleString()}</strong><small>{monthlyBudget ? Math.round((totalCost / monthlyBudget) * 100) : 0}% of budget</small></div>
         <div className="metric"><span>Architecture</span><strong>{nodes.length} stages</strong><small>{edges.length} connected decisions</small></div>
