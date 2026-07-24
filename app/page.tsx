@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toPng } from "html-to-image";
 import {
   addEdge,
@@ -28,6 +28,7 @@ type StageData = {
   platform: string;
   latency: number;
   cost: number;
+  note: string;
 };
 type StageNode = Node<StageData, "stage">;
 
@@ -50,12 +51,12 @@ const kindLabels: Record<StageKind, string> = {
 };
 
 const initialNodes: StageNode[] = [
-  { id: "1", type: "stage", position: { x: 40, y: 160 }, data: { kind: "source", label: "Order events", platform: "PostgreSQL", latency: 1, cost: 180 } },
-  { id: "2", type: "stage", position: { x: 290, y: 160 }, data: { kind: "ingest", label: "Extract & load", platform: "Airflow", latency: 8, cost: 460 } },
-  { id: "3", type: "stage", position: { x: 540, y: 160 }, data: { kind: "store", label: "Lakehouse", platform: "Databricks", latency: 5, cost: 1680 } },
-  { id: "4", type: "stage", position: { x: 790, y: 160 }, data: { kind: "transform", label: "Revenue model", platform: "dbt", latency: 12, cost: 920 } },
-  { id: "5", type: "stage", position: { x: 1040, y: 160 }, data: { kind: "serve", label: "Finance semantic", platform: "Snowflake", latency: 3, cost: 1240 } },
-  { id: "6", type: "stage", position: { x: 1290, y: 160 }, data: { kind: "consume", label: "Executive P&L", platform: "Power BI", latency: 15, cost: 680 } },
+  { id: "1", type: "stage", position: { x: 40, y: 160 }, data: { kind: "source", label: "Order events", platform: "PostgreSQL", latency: 1, cost: 180, note: "Operational order events captured at source." } },
+  { id: "2", type: "stage", position: { x: 290, y: 160 }, data: { kind: "ingest", label: "Extract & load", platform: "Airflow", latency: 8, cost: 460, note: "Scheduled extraction and load orchestration." } },
+  { id: "3", type: "stage", position: { x: 540, y: 160 }, data: { kind: "store", label: "Lakehouse", platform: "Databricks", latency: 5, cost: 1680, note: "Business-critical stage for the executive finance review." } },
+  { id: "4", type: "stage", position: { x: 790, y: 160 }, data: { kind: "transform", label: "Revenue model", platform: "dbt", latency: 12, cost: 920, note: "Curates finance-ready revenue measures." } },
+  { id: "5", type: "stage", position: { x: 1040, y: 160 }, data: { kind: "serve", label: "Finance semantic", platform: "Snowflake", latency: 3, cost: 1240, note: "Governed semantic model for finance consumers." } },
+  { id: "6", type: "stage", position: { x: 1290, y: 160 }, data: { kind: "consume", label: "Executive P&L", platform: "Power BI", latency: 15, cost: 680, note: "Executive dashboard reviewed throughout the day." } },
 ];
 
 const initialEdges: Edge[] = initialNodes.slice(0, -1).map((node, index) => ({
@@ -89,6 +90,7 @@ function StageCard({ data, selected }: NodeProps<StageNode>) {
 }
 
 const nodeTypes = { stage: StageCard };
+const storageKey = "decla-decision-canvas-v1";
 
 function DecisionCanvas() {
   const [nodes, setNodes, onNodesChange] = useNodesState<StageNode>(initialNodes);
@@ -98,6 +100,9 @@ function DecisionCanvas() {
   const [latencyTarget, setLatencyTarget] = useState(30);
   const [monthlyBudget, setMonthlyBudget] = useState(4500);
   const [exportState, setExportState] = useState<"idle" | "png" | "copied">("idle");
+  const [saveStatus, setSaveStatus] = useState<"loading" | "saving" | "saved">("loading");
+  const hydrated = useRef(false);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const totalLatency = useMemo(() => nodes.reduce((sum, node) => sum + node.data.latency, 0), [nodes]);
   const totalCost = useMemo(() => nodes.reduce((sum, node) => sum + node.data.cost, 0), [nodes]);
@@ -106,6 +111,51 @@ function DecisionCanvas() {
   const activeNode = nodes.find((node) => node.id === selectedId);
   const slowest = nodes.length ? nodes.reduce((a, b) => (a.data.latency > b.data.latency ? a : b)) : null;
   const costliest = nodes.length ? nodes.reduce((a, b) => (a.data.cost > b.data.cost ? a : b)) : null;
+
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(storageKey);
+      if (stored) {
+        const saved = JSON.parse(stored) as {
+          projectName?: string;
+          latencyTarget?: number;
+          monthlyBudget?: number;
+          nodes?: StageNode[];
+          edges?: Edge[];
+        };
+        if (saved.projectName) setProjectName(saved.projectName);
+        if (typeof saved.latencyTarget === "number") setLatencyTarget(saved.latencyTarget);
+        if (typeof saved.monthlyBudget === "number") setMonthlyBudget(saved.monthlyBudget);
+        if (Array.isArray(saved.nodes)) {
+          setNodes(saved.nodes.map((node) => ({
+            ...node,
+            data: { ...node.data, note: node.data.note ?? "" },
+          })));
+        }
+        if (Array.isArray(saved.edges)) setEdges(saved.edges);
+      }
+    } catch {
+      window.localStorage.removeItem(storageKey);
+    }
+    hydrated.current = true;
+    setSaveStatus("saved");
+  }, [setEdges, setNodes]);
+
+  useEffect(() => {
+    if (!hydrated.current) return;
+    setSaveStatus("saving");
+    if (saveTimer.current) window.clearTimeout(saveTimer.current);
+    saveTimer.current = window.setTimeout(() => {
+      window.localStorage.setItem(
+        storageKey,
+        JSON.stringify({ projectName, latencyTarget, monthlyBudget, nodes, edges }),
+      );
+      setSaveStatus("saved");
+    }, 300);
+    return () => {
+      if (saveTimer.current) window.clearTimeout(saveTimer.current);
+    };
+  }, [projectName, latencyTarget, monthlyBudget, nodes, edges]);
 
   const onConnect = useCallback(
     (connection: Connection) =>
@@ -132,7 +182,7 @@ function DecisionCanvas() {
         id,
         type: "stage",
         position: { x: maxX + 250, y: 160 },
-        data: { kind: preset.kind, label: preset.label, platform: preset.platform, latency: 5, cost: 250 },
+        data: { kind: preset.kind, label: preset.label, platform: preset.platform, latency: 5, cost: 250, note: "" },
       },
     ]);
     setSelectedId(id);
@@ -182,7 +232,7 @@ function DecisionCanvas() {
   const copyMarkdown = async () => {
     const nodeName = new Map(nodes.map((node) => [node.id, node.data.label]));
     const stageRows = nodes
-      .map((node) => `| ${node.data.label} | ${kindLabels[node.data.kind]} | ${node.data.platform} | ${node.data.latency} min | $${node.data.cost.toLocaleString()} |`)
+      .map((node) => `| ${node.data.label} | ${kindLabels[node.data.kind]} | ${node.data.platform} | ${node.data.latency} min | $${node.data.cost.toLocaleString()} | ${(node.data.note || "—").replace(/\|/g, "\\|").replace(/\n/g, " ")} |`)
       .join("\n");
     const connections = edges
       .map((edge) => `- ${nodeName.get(edge.source) ?? edge.source} → ${nodeName.get(edge.target) ?? edge.target}`)
@@ -198,8 +248,8 @@ function DecisionCanvas() {
 
 ## Architecture stages
 
-| Stage | Type | Platform | Latency | Monthly cost |
-|---|---|---|---:|---:|
+| Stage | Type | Platform | Latency | Monthly cost | Context |
+|---|---|---|---:|---:|---|
 ${stageRows}
 
 ## Connections
@@ -224,6 +274,7 @@ ${connections || "_No connections_"}
           <span className="draft">DRAFT</span>
         </div>
         <div className="top-actions">
+          <span className={`local-status ${saveStatus}`}><i />{saveStatus === "loading" ? "Loading…" : saveStatus === "saving" ? "Saving…" : "Saved locally"}</span>
           <button className="ghost-button" onClick={resetCanvas}>Reset</button>
           <button className="export-button" onClick={copyMarkdown}><span>⧉</span>{exportState === "copied" ? "Copied" : "Copy Markdown"}</button>
           <button className="share-button" onClick={downloadPng}><span>↓</span>{exportState === "png" ? "Exporting…" : "Download PNG"}</button>
@@ -339,7 +390,7 @@ ${connections || "_No connections_"}
               <div><span>BUDGET SHARE</span><strong>{monthlyBudget ? Math.round((activeNode.data.cost / monthlyBudget) * 100) : 0}%</strong></div>
               <div className="progress cost"><i style={{ width: `${Math.min(100, monthlyBudget ? (activeNode.data.cost / monthlyBudget) * 100 : 0)}%` }} /></div>
             </div>
-            <label>Context note<textarea defaultValue="Business-critical stage for the executive finance review. Runs every 30 minutes." /></label>
+            <label>Context note<textarea value={activeNode.data.note} onChange={(event) => updateNode({ note: event.target.value })} placeholder="Why this stage exists, operating assumptions, or decision context…" /></label>
             <button className="delete-button" onClick={deleteNode}>Remove stage</button>
           </aside>
         )}
