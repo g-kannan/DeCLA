@@ -8,6 +8,8 @@ import {
   Connection,
   Controls,
   Edge,
+  getNodesBounds,
+  getViewportForBounds,
   Handle,
   MarkerType,
   MiniMap,
@@ -18,6 +20,7 @@ import {
   ReactFlowProvider,
   useEdgesState,
   useNodesState,
+  useReactFlow,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 
@@ -31,6 +34,14 @@ type StageData = {
   note: string;
 };
 type StageNode = Node<StageData, "stage">;
+type SavedProject = {
+  id: string;
+  name: string;
+  latencyTarget: number;
+  monthlyBudget: number;
+  nodes: StageNode[];
+  edges: Edge[];
+};
 
 const catalog: Array<{ kind: StageKind; label: string; platform: string; icon: string }> = [
   { kind: "source", label: "Data source", platform: "PostgreSQL", icon: "DB" },
@@ -64,12 +75,13 @@ const initialEdges: Edge[] = initialNodes.slice(0, -1).map((node, index) => ({
   source: node.id,
   target: initialNodes[index + 1].id,
   type: "smoothstep",
-  markerEnd: { type: MarkerType.ArrowClosed, width: 15, height: 15, color: "#7c8780" },
-  style: { stroke: "#7c8780", strokeWidth: 1.5 },
+  markerEnd: { type: MarkerType.ArrowClosed, width: 15, height: 15, color: "#2A2ACF" },
+  style: { stroke: "#2A2ACF", strokeWidth: 1.6 },
 }));
 
-function StageCard({ data, selected }: NodeProps<StageNode>) {
+function StageCard({ id, data, selected }: NodeProps<StageNode>) {
   const preset = catalog.find((item) => item.kind === data.kind);
+  const { updateNodeData } = useReactFlow<StageNode>();
   return (
     <article className={`flow-stage ${selected ? "selected" : ""}`}>
       <Handle type="target" position={Position.Left} />
@@ -78,8 +90,18 @@ function StageCard({ data, selected }: NodeProps<StageNode>) {
         <span className="kind">{kindLabels[data.kind]}</span>
         <span className="drag-dots">•••</span>
       </div>
-      <strong>{data.label}</strong>
-      <span className="platform">{data.platform}</span>
+      <input
+        className="node-name nodrag"
+        value={data.label}
+        onChange={(event) => updateNodeData(id, { label: event.target.value })}
+        aria-label="Stage name"
+      />
+      <input
+        className="platform nodrag"
+        value={data.platform}
+        onChange={(event) => updateNodeData(id, { platform: event.target.value })}
+        aria-label="Platform name"
+      />
       <div className="node-metrics">
         <span><small>LATENCY</small><b>{data.latency} min</b></span>
         <span><small>MONTHLY</small><b>${data.cost.toLocaleString()}</b></span>
@@ -91,6 +113,20 @@ function StageCard({ data, selected }: NodeProps<StageNode>) {
 
 const nodeTypes = { stage: StageCard };
 const storageKey = "decla-decision-canvas-v1";
+const projectsStorageKey = "decla-projects-v2";
+const createDefaultProject = (id: string, name: string): SavedProject => ({
+  id,
+  name,
+  latencyTarget: 30,
+  monthlyBudget: 4500,
+  nodes: initialNodes.map((node) => ({ ...node, position: { ...node.position }, data: { ...node.data } })),
+  edges: initialEdges.map((edge) => ({ ...edge })),
+});
+const normalizeEdges = (edges: Edge[]): Edge[] => edges.map((edge) => ({
+  ...edge,
+  markerEnd: { type: MarkerType.ArrowClosed, width: 15, height: 15, color: "#2A2ACF" },
+  style: { ...edge.style, stroke: "#2A2ACF", strokeWidth: 1.6 },
+}));
 
 function DecisionCanvas() {
   const [nodes, setNodes, onNodesChange] = useNodesState<StageNode>(initialNodes);
@@ -99,10 +135,13 @@ function DecisionCanvas() {
   const [projectName, setProjectName] = useState("Finance Revenue Pulse");
   const [latencyTarget, setLatencyTarget] = useState(30);
   const [monthlyBudget, setMonthlyBudget] = useState(4500);
+  const [projects, setProjects] = useState<SavedProject[]>([]);
+  const [activeProjectId, setActiveProjectId] = useState("finance-revenue-pulse");
   const [exportState, setExportState] = useState<"idle" | "png" | "copied">("idle");
   const [saveStatus, setSaveStatus] = useState<"loading" | "saving" | "saved">("loading");
   const hydrated = useRef(false);
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const switchingProject = useRef(false);
+  const saveTimer = useRef<number | null>(null);
 
   const totalLatency = useMemo(() => nodes.reduce((sum, node) => sum + node.data.latency, 0), [nodes]);
   const totalCost = useMemo(() => nodes.reduce((sum, node) => sum + node.data.cost, 0), [nodes]);
@@ -114,48 +153,78 @@ function DecisionCanvas() {
 
   useEffect(() => {
     try {
-      const stored = window.localStorage.getItem(storageKey);
-      if (stored) {
-        const saved = JSON.parse(stored) as {
-          projectName?: string;
-          latencyTarget?: number;
-          monthlyBudget?: number;
-          nodes?: StageNode[];
-          edges?: Edge[];
-        };
-        if (saved.projectName) setProjectName(saved.projectName);
-        if (typeof saved.latencyTarget === "number") setLatencyTarget(saved.latencyTarget);
-        if (typeof saved.monthlyBudget === "number") setMonthlyBudget(saved.monthlyBudget);
-        if (Array.isArray(saved.nodes)) {
-          setNodes(saved.nodes.map((node) => ({
-            ...node,
-            data: { ...node.data, note: node.data.note ?? "" },
-          })));
-        }
-        if (Array.isArray(saved.edges)) setEdges(saved.edges);
+      const savedProjects = window.localStorage.getItem(projectsStorageKey);
+      const legacy = window.localStorage.getItem(storageKey);
+      let loadedProjects: SavedProject[];
+      let activeId: string;
+
+      if (savedProjects) {
+        const saved = JSON.parse(savedProjects) as { activeProjectId?: string; projects?: SavedProject[] };
+        loadedProjects = Array.isArray(saved.projects) && saved.projects.length
+          ? saved.projects
+          : [createDefaultProject("finance-revenue-pulse", "Finance Revenue Pulse")];
+        activeId = saved.activeProjectId && loadedProjects.some((project) => project.id === saved.activeProjectId)
+          ? saved.activeProjectId
+          : loadedProjects[0].id;
+      } else if (legacy) {
+        const saved = JSON.parse(legacy) as Partial<SavedProject> & { projectName?: string };
+        loadedProjects = [{
+          ...createDefaultProject("finance-revenue-pulse", saved.projectName || "Finance Revenue Pulse"),
+          latencyTarget: typeof saved.latencyTarget === "number" ? saved.latencyTarget : 30,
+          monthlyBudget: typeof saved.monthlyBudget === "number" ? saved.monthlyBudget : 4500,
+          nodes: Array.isArray(saved.nodes) ? saved.nodes : initialNodes,
+          edges: Array.isArray(saved.edges) ? saved.edges : initialEdges,
+        }];
+        activeId = loadedProjects[0].id;
+      } else {
+        loadedProjects = [createDefaultProject("finance-revenue-pulse", "Finance Revenue Pulse")];
+        activeId = loadedProjects[0].id;
       }
+
+      const active = loadedProjects.find((project) => project.id === activeId)!;
+      const normalizedNodes = active.nodes.map((node) => ({ ...node, data: { ...node.data, note: node.data.note ?? "" } }));
+      setProjects(loadedProjects);
+      setActiveProjectId(active.id);
+      setProjectName(active.name);
+      setLatencyTarget(active.latencyTarget);
+      setMonthlyBudget(active.monthlyBudget);
+      setNodes(normalizedNodes);
+      setEdges(normalizeEdges(active.edges));
     } catch {
-      window.localStorage.removeItem(storageKey);
+      const fallback = createDefaultProject("finance-revenue-pulse", "Finance Revenue Pulse");
+      setProjects([fallback]);
+      window.localStorage.removeItem(projectsStorageKey);
     }
     hydrated.current = true;
     setSaveStatus("saved");
   }, [setEdges, setNodes]);
 
   useEffect(() => {
-    if (!hydrated.current) return;
+    if (!hydrated.current || switchingProject.current) return;
     setSaveStatus("saving");
     if (saveTimer.current) window.clearTimeout(saveTimer.current);
     saveTimer.current = window.setTimeout(() => {
-      window.localStorage.setItem(
-        storageKey,
-        JSON.stringify({ projectName, latencyTarget, monthlyBudget, nodes, edges }),
-      );
+      setProjects((current) => {
+        const updatedProject: SavedProject = {
+          id: activeProjectId,
+          name: projectName,
+          latencyTarget,
+          monthlyBudget,
+          nodes,
+          edges,
+        };
+        const updated = current.some((project) => project.id === activeProjectId)
+          ? current.map((project) => project.id === activeProjectId ? updatedProject : project)
+          : [...current, updatedProject];
+        window.localStorage.setItem(projectsStorageKey, JSON.stringify({ activeProjectId, projects: updated }));
+        return updated;
+      });
       setSaveStatus("saved");
     }, 300);
     return () => {
       if (saveTimer.current) window.clearTimeout(saveTimer.current);
     };
-  }, [projectName, latencyTarget, monthlyBudget, nodes, edges]);
+  }, [activeProjectId, projectName, latencyTarget, monthlyBudget, nodes, edges]);
 
   const onConnect = useCallback(
     (connection: Connection) =>
@@ -164,8 +233,8 @@ function DecisionCanvas() {
           {
             ...connection,
             type: "smoothstep",
-            markerEnd: { type: MarkerType.ArrowClosed, width: 15, height: 15, color: "#176b48" },
-            style: { stroke: "#176b48", strokeWidth: 1.7 },
+            markerEnd: { type: MarkerType.ArrowClosed, width: 15, height: 15, color: "#2A2ACF" },
+            style: { stroke: "#2A2ACF", strokeWidth: 1.7 },
           },
           current,
         ),
@@ -203,26 +272,113 @@ function DecisionCanvas() {
   };
 
   const resetCanvas = () => {
-    setNodes(initialNodes);
-    setEdges(initialEdges);
+    const fresh = createDefaultProject(activeProjectId, projectName);
+    setNodes(fresh.nodes);
+    setEdges(fresh.edges);
     setSelectedId("3");
     setLatencyTarget(30);
     setMonthlyBudget(4500);
   };
 
+  const currentProjectSnapshot = (): SavedProject => ({
+    id: activeProjectId,
+    name: projectName,
+    latencyTarget,
+    monthlyBudget,
+    nodes,
+    edges,
+  });
+
+  const loadProject = (project: SavedProject, projectList: SavedProject[]) => {
+    switchingProject.current = true;
+    setProjects(projectList);
+    setActiveProjectId(project.id);
+    setProjectName(project.name);
+    setLatencyTarget(project.latencyTarget);
+    setMonthlyBudget(project.monthlyBudget);
+    setNodes(project.nodes.map((node) => ({ ...node, data: { ...node.data, note: node.data.note ?? "" } })));
+    setEdges(normalizeEdges(project.edges));
+    setSelectedId(project.nodes[0]?.id ?? null);
+    window.localStorage.setItem(projectsStorageKey, JSON.stringify({ activeProjectId: project.id, projects: projectList }));
+    window.requestAnimationFrame(() => {
+      switchingProject.current = false;
+      setSaveStatus("saved");
+    });
+  };
+
+  const switchProject = (id: string) => {
+    const withCurrentSaved = projects.map((project) => project.id === activeProjectId ? currentProjectSnapshot() : project);
+    const target = withCurrentSaved.find((project) => project.id === id);
+    if (target) loadProject(target, withCurrentSaved);
+  };
+
+  const addProject = () => {
+    const id = `project-${Date.now()}`;
+    const next = createDefaultProject(id, `New decision project ${projects.length + 1}`);
+    const withCurrentSaved = projects.map((project) => project.id === activeProjectId ? currentProjectSnapshot() : project);
+    loadProject(next, [...withCurrentSaved, next]);
+  };
+
+  const removeProject = () => {
+    if (!window.confirm(`Remove “${projectName}” from this browser?`)) return;
+    const remaining = projects.filter((project) => project.id !== activeProjectId);
+    const projectList = remaining.length ? remaining : [createDefaultProject(`project-${Date.now()}`, "Untitled decision project")];
+    loadProject(projectList[0], projectList);
+  };
+
   const downloadPng = async () => {
-    const canvas = document.querySelector<HTMLElement>(".flow-area");
-    if (!canvas) return;
+    const viewportElement = document.querySelector<HTMLElement>(".react-flow__viewport");
+    if (!viewportElement || !nodes.length) return;
     setExportState("png");
     try {
-      const dataUrl = await toPng(canvas, {
+      const bounds = getNodesBounds(nodes);
+      const graphWidth = Math.min(3200, Math.max(1800, Math.ceil(bounds.width + 320)));
+      const graphHeight = Math.min(1800, Math.max(680, Math.ceil(bounds.height + 260)));
+      const headerHeight = 150;
+      const viewport = getViewportForBounds(bounds, graphWidth, graphHeight, 0.2, 1.5, 0.12);
+      const graphUrl = await toPng(viewportElement, {
         cacheBust: true,
-        pixelRatio: 2,
+        pixelRatio: 1,
         backgroundColor: "#f7f7fc",
+        width: graphWidth,
+        height: graphHeight,
+        style: {
+          width: `${graphWidth}px`,
+          height: `${graphHeight}px`,
+          transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})`,
+        },
       });
+      const graphImage = new Image();
+      graphImage.src = graphUrl;
+      await new Promise<void>((resolve, reject) => {
+        graphImage.onload = () => resolve();
+        graphImage.onerror = () => reject(new Error("Could not render the decision flow"));
+      });
+      const exportCanvas = document.createElement("canvas");
+      exportCanvas.width = graphWidth;
+      exportCanvas.height = graphHeight + headerHeight;
+      const context = exportCanvas.getContext("2d");
+      if (!context) return;
+      context.fillStyle = "#2A2ACF";
+      context.fillRect(0, 0, graphWidth, headerHeight);
+      context.fillStyle = "#ffffff";
+      context.font = "800 32px Arial";
+      context.fillText(projectName, 56, 58);
+      context.fillStyle = "#dadaff";
+      context.font = "700 15px Arial";
+      context.fillText("DeCLA · Decision Latency Intelligence", 56, 88);
+      context.fillStyle = "#ffffff";
+      context.font = "700 16px Arial";
+      context.fillText(`Required freshness  ${latencyTarget} min`, graphWidth - 590, 58);
+      context.fillText(`Monthly budget  $${monthlyBudget.toLocaleString()}`, graphWidth - 300, 58);
+      context.fillStyle = latencyVariance > 0 ? "#ffb17e" : "#9dffda";
+      context.fillText(`Current latency  ${totalLatency} min`, graphWidth - 590, 94);
+      context.fillStyle = budgetVariance > 0 ? "#ffb17e" : "#9dffda";
+      context.fillText(`Current cost  $${totalCost.toLocaleString()}`, graphWidth - 300, 94);
+      context.drawImage(graphImage, 0, headerHeight, graphWidth, graphHeight);
       const link = document.createElement("a");
       link.download = `${projectName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "decla-canvas"}.png`;
-      link.href = dataUrl;
+      link.href = exportCanvas.toDataURL("image/png");
       link.click();
     } finally {
       setExportState("idle");
@@ -268,10 +424,19 @@ ${connections || "_No connections_"}
           <span className="brand-mark">D</span>
           <div><strong>DeCLA</strong><small>Decision Latency Intelligence</small></div>
         </div>
-        <div className="project-title">
-          <span className="status-dot" />
-          <input value={projectName} onChange={(event) => setProjectName(event.target.value)} aria-label="Project name" />
-          <span className="draft">DRAFT</span>
+        <div className="project-center">
+          <div className="project-switcher">
+            <select value={activeProjectId} onChange={(event) => switchProject(event.target.value)} aria-label="Select project">
+              {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
+            </select>
+            <button onClick={addProject} title="Add project">+ New</button>
+            <button className="remove-project" onClick={removeProject} title="Remove current project">Remove</button>
+          </div>
+          <div className="project-title">
+            <span className="status-dot" />
+            <input value={projectName} onChange={(event) => setProjectName(event.target.value)} aria-label="Rename current project" title="Click to rename project" />
+            <span className="draft">EDITABLE</span>
+          </div>
         </div>
         <div className="top-actions">
           <span className={`local-status ${saveStatus}`}><i />{saveStatus === "loading" ? "Loading…" : saveStatus === "saving" ? "Saving…" : "Saved locally"}</span>
@@ -336,8 +501,8 @@ ${connections || "_No connections_"}
         <section className="flow-area" aria-label="Architecture decision canvas">
           <div className="flow-caption">
             <span>FLOW 01</span>
-            <strong>Executive revenue decision path</strong>
-            <small>Connect stages to describe how data becomes a decision</small>
+            <strong>{projectName}</strong>
+            <small>Edit names directly on cards · select a stage for all details</small>
           </div>
           <ReactFlow
             nodes={nodes}
@@ -347,7 +512,6 @@ ${connections || "_No connections_"}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
             onNodeClick={(_, node) => setSelectedId(node.id)}
-            onPaneClick={() => setSelectedId(null)}
             fitView
             fitViewOptions={{ padding: 0.18 }}
             minZoom={0.35}
@@ -361,17 +525,18 @@ ${connections || "_No connections_"}
               position="bottom-left"
               pannable
               zoomable
-              nodeColor={(node) => node.id === selectedId ? "#176b48" : "#a9b2ac"}
+              nodeColor={(node) => node.id === selectedId ? "#F36A10" : "#2A2ACF"}
               maskColor="rgba(247,247,243,.75)"
             />
           </ReactFlow>
         </section>
 
-        {activeNode && (
-          <aside className="inspector">
+        <aside className="inspector">
+          {activeNode ? (
+            <>
             <div className="inspector-heading">
               <div><span>STAGE DETAILS</span><strong>{kindLabels[activeNode.data.kind]}</strong></div>
-              <button onClick={() => setSelectedId(null)} aria-label="Close panel">×</button>
+              <span className="editing-badge">EDITING</span>
             </div>
             <label>Stage name<input value={activeNode.data.label} onChange={(event) => updateNode({ label: event.target.value })} /></label>
             <label>
@@ -392,8 +557,15 @@ ${connections || "_No connections_"}
             </div>
             <label>Context note<textarea value={activeNode.data.note} onChange={(event) => updateNode({ note: event.target.value })} placeholder="Why this stage exists, operating assumptions, or decision context…" /></label>
             <button className="delete-button" onClick={deleteNode}>Remove stage</button>
-          </aside>
-        )}
+            </>
+          ) : (
+            <div className="empty-inspector">
+              <span>STAGE DETAILS</span>
+              <strong>Select a stage to edit it</strong>
+              <p>You can also rename a stage or platform directly on its canvas card.</p>
+            </div>
+          )}
+        </aside>
       </div>
     </main>
   );
