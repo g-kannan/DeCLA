@@ -272,7 +272,15 @@ async def replace_version_content(
         await session.execute(
             delete(VersionMeasureValue).where(VersionMeasureValue.dataflow_version_id == version.id)
         )
-        for item in payload.measures:
+        stage_items = [item for item in payload.measures if item.stage_logical_key]
+        flow_items = {
+            item.measure_definition_id: item
+            for item in payload.measures
+            if not item.stage_logical_key
+        }
+        staged_by_definition: dict[uuid.UUID, list] = {}
+
+        for item in stage_items:
             stage = stage_by_key.get(item.stage_logical_key) if item.stage_logical_key else None
             if item.stage_logical_key and stage is None:
                 raise HTTPException(
@@ -283,6 +291,62 @@ async def replace_version_content(
                 VersionMeasureValue(
                     dataflow_version_id=version.id,
                     stage_id=stage.id if stage else None,
+                    measure_definition_id=item.measure_definition_id,
+                    numeric_value=item.numeric_value,
+                    text_value=item.text_value,
+                    source=item.source,
+                    explanation=item.explanation,
+                )
+            )
+            staged_by_definition.setdefault(item.measure_definition_id, []).append(item)
+
+        definitions = {
+            definition.id: definition
+            for definition in (
+                await session.scalars(
+                    select(MeasureDefinition).where(
+                        MeasureDefinition.id.in_(staged_by_definition.keys())
+                    )
+                )
+            ).all()
+        }
+        for definition_id, items in staged_by_definition.items():
+            numeric_values = [
+                item.numeric_value for item in items if item.numeric_value is not None
+            ]
+            if not numeric_values:
+                continue
+            aggregation = (
+                definitions[definition_id].aggregation
+                if definition_id in definitions
+                else "sum"
+            )
+            if aggregation == "average":
+                aggregated_value = sum(numeric_values) / len(numeric_values)
+            elif aggregation == "maximum":
+                aggregated_value = max(numeric_values)
+            elif aggregation == "count":
+                aggregated_value = len(numeric_values)
+            elif aggregation == "distinct_count":
+                aggregated_value = len(set(numeric_values))
+            else:
+                aggregated_value = sum(numeric_values)
+            session.add(
+                VersionMeasureValue(
+                    dataflow_version_id=version.id,
+                    measure_definition_id=definition_id,
+                    numeric_value=aggregated_value,
+                    source="calculated",
+                    explanation=f"Calculated from {len(numeric_values)} stage values",
+                )
+            )
+
+        for definition_id, item in flow_items.items():
+            if definition_id in staged_by_definition:
+                continue
+            session.add(
+                VersionMeasureValue(
+                    dataflow_version_id=version.id,
                     measure_definition_id=item.measure_definition_id,
                     numeric_value=item.numeric_value,
                     text_value=item.text_value,

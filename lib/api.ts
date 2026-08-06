@@ -55,6 +55,19 @@ export type Measure = {
   explanation: string;
 };
 
+export type MeasureDefinition = {
+  id: string;
+  key: string;
+  name: string;
+  description: string;
+  value_type: string;
+  unit: string;
+  aggregation: string;
+  improvement_direction: string;
+  display_order: number;
+  enabled: boolean;
+};
+
 export type Version = {
   id: string;
   dataflow_id: string;
@@ -140,6 +153,7 @@ export const api = {
   createDataflow: (payload: DataflowCreate) =>
     request<Version>("/api/dataflows", { method: "POST", body: JSON.stringify(payload) }),
   listStageTypes: () => request<StageType[]>("/api/definitions/stage-types"),
+  listMeasures: () => request<MeasureDefinition[]>("/api/definitions/measures"),
   getVersion: (dataflowId: string, tag: "current" | "proposed") =>
     request<Version>(`/api/dataflows/${dataflowId}/versions?tag=${tag}`),
   listVersions: (dataflowId: string) =>
@@ -165,10 +179,11 @@ export const api = {
           properties: stage.properties,
           note: stage.note,
         })),
-        measures: version.measures
-          .filter((measure) => !measure.stage_id)
-          .map((measure) => ({
+        measures: version.measures.map((measure) => ({
             measure_definition_id: measure.measure_definition_id,
+            stage_logical_key: measure.stage_id
+              ? version.stages.find((stage) => stage.id === measure.stage_id)?.logical_key
+              : null,
             numeric_value: measure.numeric_value,
             text_value: measure.text_value,
             source: measure.source,

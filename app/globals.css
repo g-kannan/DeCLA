@@ -618,6 +618,23 @@ input:focus, select:focus, textarea:focus {
 .selected-stage-summary h2 { margin: 0; font-size: 20px; letter-spacing: -0.025em; }
 .selected-stage-summary small { color: var(--muted); font-size: 12px; }
 
+.stage-measures {
+  display: grid;
+  gap: 10px;
+  padding: 13px 0;
+  border-top: 1px solid var(--soft-line);
+  border-bottom: 1px solid var(--soft-line);
+}
+
+.stage-measures > div:first-child { display: grid; gap: 3px; }
+.stage-measures > div:first-child > span { color: var(--primary); font-size: 9px; font-weight: 800; letter-spacing: 0.1em; }
+.stage-measures > div:first-child > small { color: var(--muted); font-size: 10px; }
+.stage-measure-grid { display: grid; gap: 7px; }
+.stage-measure-grid label { grid-template-columns: minmax(0, 1fr) 92px; align-items: center; }
+.stage-measure-grid label > span { display: grid; gap: 2px; }
+.stage-measure-grid label > span small { color: var(--muted); font-size: 9px; font-weight: 500; }
+.stage-measure-grid input { height: 34px; text-align: right; font-weight: 700; }
+
 .field-pair {
   display: grid;
   grid-template-columns: 1fr 1fr;
