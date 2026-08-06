@@ -1,0 +1,79 @@
+import Image from "next/image";
+
+type StageIconData = {
+  label?: string;
+  platform?: string;
+  stage_type_key?: string;
+  category?: string;
+};
+
+type StageIconProps = {
+  stage: StageIconData;
+  className?: string;
+  decorative?: boolean;
+};
+
+const ICON_ROOT = "/icons/stages";
+
+const icons = {
+  analytics: { file: "analytics.svg", label: "Analytics" },
+  database: { file: "database.svg", label: "Database" },
+  databricks: { file: "databricks.svg", label: "Databricks" },
+  iceberg: { file: "iceberg.svg", label: "Iceberg" },
+  source: { file: "source.svg", label: "Source" },
+  snowflake: { file: "snowflake.svg", label: "Snowflake" },
+  terminal: { file: "terminal.svg", label: "Scripts" },
+  transform: { file: "transform.svg", label: "Transformation" },
+} as const;
+
+function iconForStage(stage: StageIconData) {
+  const searchable = [stage.label, stage.platform, stage.stage_type_key, stage.category]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  if (searchable.includes("databricks")) return icons.databricks;
+  if (searchable.includes("iceberg")) return icons.iceberg;
+  if (searchable.includes("snowsql") || searchable.includes("terminal") || searchable.includes("script")) {
+    return icons.terminal;
+  }
+  if (searchable.includes("snowflake")) return icons.snowflake;
+  if (
+    searchable.includes("microstrategy") ||
+    searchable.includes("dashboard") ||
+    searchable.includes("report") ||
+    searchable.includes("consume") ||
+    searchable.includes("serve")
+  ) {
+    return icons.analytics;
+  }
+  if (
+    searchable.includes("database") ||
+    searchable.includes("warehouse") ||
+    searchable.includes("table") ||
+    searchable.includes("store") ||
+    searchable.includes("load") ||
+    searchable.includes("ingest")
+  ) {
+    return icons.database;
+  }
+  if (searchable.includes("transform")) return icons.transform;
+  return icons.source;
+}
+
+export function StageIcon({ stage, className = "", decorative = true }: StageIconProps) {
+  const icon = iconForStage(stage);
+
+  return (
+    <span className={`stage-icon ${className}`.trim()} title={decorative ? icon.label : undefined}>
+      <Image
+        src={`${ICON_ROOT}/${icon.file}`}
+        alt={decorative ? "" : icon.label}
+        aria-hidden={decorative || undefined}
+        width={40}
+        height={40}
+        unoptimized
+      />
+    </span>
+  );
+}
