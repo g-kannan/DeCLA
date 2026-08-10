@@ -543,12 +543,6 @@ export default function DecisionCanvasPage() {
             <div className="eyebrow-row"><span className="process-eyebrow">DECISION CANVAS</span>{versions[0] && <span className="version-mini">v{versions[0].version}</span>}</div>
             <div className="process-title-row"><input className="process-title-input" value={processName} onChange={(event) => setProcessName(event.target.value)} placeholder="Untitled decision canvas" aria-label="Decision canvas name" /></div>
             <div className="version-tag-bar"><span>VERSION TAGS <em>Optional</em></span><div>{versionTagOptions.map((tag) => <button key={tag} className={versionTags.includes(tag) ? "selected" : ""} onClick={() => toggleVersionTag(tag)}>{tag}</button>)}</div></div>
-            <div className="project-metadata-row">
-              <label><span>PROJECT BUDGET</span><div className="project-input-group"><input type="number" min="0" step="1" value={projectBudget} onChange={(event) => setProjectBudget(event.target.value)} placeholder="No budget" aria-label="Project budget" /><SearchableSelect value={budgetCurrency} options={currencies.map((currency) => ({ value: currency, label: currency }))} onChange={setBudgetCurrency} ariaLabel="Budget currency" /></div></label>
-              <label><span>PROJECT SLA</span><div className="project-input-group"><input type="number" min="0" step="1" value={projectSla} onChange={(event) => setProjectSla(event.target.value)} placeholder="No SLA" aria-label="Project SLA" /><SearchableSelect value={projectSlaUnit} options={durationUnits.map((unit) => ({ value: unit, label: unit }))} onChange={setProjectSlaUnit} ariaLabel="Project SLA unit" /></div></label>
-              <label className="environment-input"><span>ENVIRONMENT</span><SearchableSelect value={environment} options={environmentOptions} onChange={(value) => setEnvironment(value as CanvasEnvironment)} ariaLabel="Project environment" /></label>
-              <label className="go-live-input"><span>GO-LIVE TARGET</span><input type="date" value={goLiveDate} onChange={(event) => setGoLiveDate(event.target.value)} aria-label="Go-live target date" /></label>
-            </div>
           </div>
           <div className="process-heading-actions">
             <div className="header-status-group"><span className="local-pill"><i /> Local draft</span><label className={`project-status-control header-project-status ${projectStatus}`}><span>PROJECT STATUS</span><SearchableSelect value={projectStatus} options={statusOptions} onChange={(value) => setProjectStatus(value as CanvasStatus)} ariaLabel="Project status" /></label></div><button className="secondary-button" onClick={() => setMessage("Share link copied to clipboard")}>Share</button>
@@ -558,25 +552,35 @@ export default function DecisionCanvasPage() {
 
         <section className="project-properties-strip" aria-label="Project properties">
           <div className="project-properties-title"><span>PROJECT</span><strong>PROPERTIES</strong></div>
-          <div className="project-property-metric">
-            <span>BUDGET / RUN</span>
-            <strong><em>{budgetCurrency}</em>{totalCost.toLocaleString()}<span className="prop-cap">cap</span> <em>{budgetCurrency}</em>{projectBudget ? Number(projectBudget).toLocaleString() : "—"}</strong>
-            <small>{budgetTotal > 0 ? `${Math.round((totalCost / budgetTotal) * 100)}% of run budget` : "Set a budget to compare"}</small>
+          <div className="project-property-metric editable-metric">
+            <span>PROJECT BUDGET / RUN</span>
+            <div className="prop-control-group">
+              <input type="number" min="0" step="1" value={projectBudget} onChange={(event) => setProjectBudget(event.target.value)} placeholder="No budget" aria-label="Project budget" className="prop-input-number" />
+              <SearchableSelect value={budgetCurrency} options={currencies.map((currency) => ({ value: currency, label: currency }))} onChange={setBudgetCurrency} ariaLabel="Budget currency" className="prop-select-currency" />
+            </div>
+            <small>Run: <em>{budgetCurrency}</em> {totalCost.toLocaleString()}{budgetTotal > 0 ? ` · ${Math.round((totalCost / budgetTotal) * 100)}% of cap` : " · Set budget cap"}</small>
           </div>
-          <div className="project-property-metric">
-            <span>SLA TARGET</span>
-            <strong>{formatDuration(totalLatencyMinutes)}</strong>
-            <small>{slaTargetMinutes > 0 ? `${Math.round((totalLatencyMinutes / slaTargetMinutes) * 100)}% · end-to-end ceiling` : "end-to-end ceiling"}</small>
+          <div className="project-property-metric editable-metric">
+            <span>PROJECT SLA TARGET</span>
+            <div className="prop-control-group">
+              <input type="number" min="0" step="1" value={projectSla} onChange={(event) => setProjectSla(event.target.value)} placeholder="No SLA" aria-label="Project SLA" className="prop-input-number" />
+              <SearchableSelect value={projectSlaUnit} options={durationUnits.map((unit) => ({ value: unit, label: unit }))} onChange={setProjectSlaUnit} ariaLabel="Project SLA unit" className="prop-select-unit" />
+            </div>
+            <small>Run: {formatDuration(totalLatencyMinutes)}{slaTargetMinutes > 0 ? ` · ${Math.round((totalLatencyMinutes / slaTargetMinutes) * 100)}% ceiling` : " · end-to-end ceiling"}</small>
           </div>
-          <div className="project-property-metric">
+          <div className="project-property-metric editable-metric">
             <span>ENVIRONMENT</span>
-            <strong className={`environment-badge ${environment}`}><i />{environmentOptions.find((option) => option.value === environment)?.label}</strong>
-            <small>{environment === "production" ? "Live traffic" : environment === "staging" ? "Pre-production" : "Sandbox"}</small>
+            <div className="prop-control-group">
+              <SearchableSelect value={environment} options={environmentOptions} onChange={(value) => setEnvironment(value as CanvasEnvironment)} ariaLabel="Project environment" className={`prop-select-env ${environment}`} />
+            </div>
+            <small>{environment === "production" ? "Live traffic" : environment === "staging" ? "Pre-production" : "Sandbox environment"}</small>
           </div>
-          <div className="project-property-metric">
+          <div className="project-property-metric editable-metric">
             <span>GO-LIVE TARGET</span>
-            <strong>{formatShortDate(goLiveDate)}</strong>
-            <small>{goLiveDate ? "Target release date" : "Choose a target date"}</small>
+            <div className="prop-control-group">
+              <input type="date" value={goLiveDate} onChange={(event) => setGoLiveDate(event.target.value)} aria-label="Go-live target date" className="prop-input-date" />
+            </div>
+            <small>{goLiveDate ? formatShortDate(goLiveDate) : "Choose a target date"}</small>
           </div>
           <div className="project-property-metric days-pending">
             <span>DAYS PENDING</span>

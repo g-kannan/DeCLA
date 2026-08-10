@@ -1270,6 +1270,109 @@ input:focus, select:focus, textarea:focus {
   background: rgba(34,197,94,0.08);
 }
 
+.project-property-metric.editable-metric {
+  gap: 3px;
+  min-width: 155px;
+}
+.prop-control-group {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 3px;
+  margin-bottom: 1px;
+}
+.prop-input-number {
+  width: 82px;
+  height: 29px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--ink);
+  background: var(--surface-raised);
+  font-size: 12px;
+  font-weight: 750;
+  outline: 0;
+}
+.prop-input-number:hover {
+  border-color: var(--border-hover);
+}
+.prop-input-number:focus {
+  border-color: var(--primary);
+  background: var(--surface);
+}
+.prop-select-currency,
+.prop-select-unit {
+  width: 68px;
+}
+.prop-select-currency .searchable-select-trigger,
+.prop-select-unit .searchable-select-trigger {
+  height: 29px;
+  padding: 0 6px;
+  border-color: var(--line);
+  border-radius: 6px;
+  color: var(--ink-secondary);
+  background: var(--surface-raised);
+  font-size: 10.5px;
+  font-weight: 700;
+}
+.prop-select-currency .searchable-select-trigger:hover,
+.prop-select-unit .searchable-select-trigger:hover {
+  border-color: var(--border-hover);
+  color: var(--ink);
+  background: var(--surface-hover);
+}
+.prop-select-env {
+  width: 135px;
+}
+.prop-select-env .searchable-select-trigger {
+  height: 29px;
+  padding: 0 8px;
+  border-color: var(--line);
+  border-radius: 6px;
+  color: var(--ink);
+  background: var(--surface-raised);
+  font-size: 11px;
+  font-weight: 700;
+}
+.prop-select-env .searchable-select-trigger:hover {
+  border-color: var(--border-hover);
+  background: var(--surface-hover);
+}
+.prop-select-env.development .searchable-select-trigger {
+  border-color: rgba(99,102,241,0.3);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.prop-select-env.staging .searchable-select-trigger {
+  border-color: rgba(245,158,11,0.3);
+  color: var(--warning);
+  background: rgba(245,158,11,0.08);
+}
+.prop-select-env.production .searchable-select-trigger {
+  border-color: rgba(34,197,94,0.3);
+  color: var(--good);
+  background: rgba(34,197,94,0.08);
+}
+.prop-input-date {
+  width: 135px;
+  height: 29px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--ink);
+  background: var(--surface-raised);
+  font-size: 11px;
+  font-weight: 700;
+  outline: 0;
+}
+.prop-input-date:hover {
+  border-color: var(--border-hover);
+}
+.prop-input-date:focus {
+  border-color: var(--primary);
+  background: var(--surface);
+}
+
 .process-layout { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 14px; align-items: stretch; }
 .process-canvas-panel, .inspector-panel { min-height: 650px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); box-shadow: var(--shadow-sm); }
 .process-canvas-panel { display: grid; grid-template-rows: auto minmax(440px, 1fr) auto; min-width: 0; overflow: hidden; }
