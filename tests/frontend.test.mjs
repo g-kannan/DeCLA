@@ -14,11 +14,16 @@ test("frontend exposes a process canvas with local editing controls", async () =
   assert.match(canvas, /DECISION CANVAS/);
   assert.match(canvas, /Add stage/);
   assert.match(canvas, /Add property/);
+  assert.match(canvas, /COST \/ BUDGET/);
+  assert.match(canvas, /LATENCY \/ SLA/);
+  assert.match(canvas, /GO-LIVE TARGET/);
+  assert.match(canvas, /beginPan/);
   assert.match(canvas, /localStorage/);
   assert.match(log, /Decision log/);
   assert.match(log, /readCanvasVersions/);
   assert.match(comparison, /PROPERTY AGGREGATES/);
   assert.match(comparison, /STAGE DIFF/);
+  assert.match(comparison, /BASELINE ENVIRONMENT \/ VERSION/);
   assert.match(shell, /\/canvas/);
   assert.match(shell, /\/log/);
   assert.match(shell, /\/comparison/);

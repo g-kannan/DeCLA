@@ -14,6 +14,8 @@ export type CanvasStage = {
 export type CanvasDraft = {
   name: string;
   status: CanvasStatus;
+  environment: CanvasEnvironment;
+  goLiveDate: string;
   budget: string;
   budgetCurrency: string;
   sla: string;
@@ -22,6 +24,7 @@ export type CanvasDraft = {
 };
 
 export type CanvasStatus = "draft" | "under-review" | "approved" | "archived";
+export type CanvasEnvironment = "development" | "staging" | "production";
 
 export type CanvasVersion = CanvasDraft & {
   id: string;
@@ -38,7 +41,13 @@ export function readCanvasVersions() {
   if (typeof window === "undefined") return [] as CanvasVersion[];
   try {
     const raw = window.localStorage.getItem(VERSIONS_STORAGE_KEY);
-    return raw ? JSON.parse(raw) as CanvasVersion[] : [];
+    const versions = raw ? JSON.parse(raw) as CanvasVersion[] : [];
+    return versions.map((version) => ({
+      ...version,
+      environment: version.environment ?? "development",
+      goLiveDate: version.goLiveDate ?? "",
+      tags: Array.isArray(version.tags) ? version.tags : [],
+    }));
   } catch {
     return [] as CanvasVersion[];
   }

@@ -1,18 +1,18 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import { AppShell } from "@/app/components/app-shell";
-import { CANVAS_STORAGE_KEY, nextCanvasVersion, readCanvasVersions, writeCanvasDraft, writeCanvasVersions, type CanvasStage, type CanvasStatus, type CanvasVersion, type PropertyKind, type StageProperty } from "@/lib/local-canvas";
+import { CANVAS_STORAGE_KEY, nextCanvasVersion, readCanvasVersions, writeCanvasDraft, writeCanvasVersions, type CanvasEnvironment, type CanvasStage, type CanvasStatus, type CanvasVersion, type PropertyKind, type StageProperty } from "@/lib/local-canvas";
 import { StageIcon } from "@/lib/stage-icons";
 
 type StageKind = "source" | "transform" | "database" | "analytics" | "terminal";
 
 const stageTypes: { label: string; key: StageKind; color: string }[] = [
-  { label: "Input", key: "source", color: "#3d68d7" },
-  { label: "Transform", key: "transform", color: "#b45dcd" },
-  { label: "Storage", key: "database", color: "#2f9b86" },
-  { label: "Decision", key: "analytics", color: "#d79533" },
-  { label: "Automation", key: "terminal", color: "#e26b55" },
+  { label: "Input", key: "source", color: "#2A2ACF" },
+  { label: "Transform", key: "transform", color: "#F36A10" },
+  { label: "Storage", key: "database", color: "#2A2ACF" },
+  { label: "Decision", key: "analytics", color: "#F36A10" },
+  { label: "Automation", key: "terminal", color: "#2A2ACF" },
 ];
 
 const platforms = ["Salesforce", "HubSpot", "Snowflake", "Databricks", "dbt", "AWS", "Other"];
@@ -33,6 +33,11 @@ const statusOptions: { value: CanvasStatus; label: string }[] = [
   { value: "archived", label: "Archived" },
 ];
 const versionTagOptions = ["Current", "Proposed", "Draft", "Under review", "Approved"];
+const environmentOptions: { value: CanvasEnvironment; label: string }[] = [
+  { value: "development", label: "Development" },
+  { value: "staging", label: "Staging" },
+  { value: "production", label: "Production" },
+];
 const seedStages: CanvasStage[] = [
   {
     id: "capture-lead",
@@ -40,7 +45,7 @@ const seedStages: CanvasStage[] = [
     type: "Input",
     platform: "Salesforce",
     iconKey: "source",
-    color: "#3d68d7",
+    color: "#2A2ACF",
     properties: [{ id: "p1", name: "Rows", value: "18,420", kind: "rows", unit: "rows/day" }, { id: "p2", name: "Owner", value: "RevOps", kind: "owner" }],
   },
   {
@@ -49,7 +54,7 @@ const seedStages: CanvasStage[] = [
     type: "Decision",
     platform: "HubSpot",
     iconKey: "analytics",
-    color: "#d79533",
+    color: "#F36A10",
     properties: [{ id: "p3", name: "Duration", value: "4", kind: "duration", unit: "hours" }, { id: "p4", name: "SLA", value: "1", kind: "sla", unit: "days" }],
   },
   {
@@ -58,7 +63,7 @@ const seedStages: CanvasStage[] = [
     type: "Transform",
     platform: "dbt",
     iconKey: "transform",
-    color: "#b45dcd",
+    color: "#F36A10",
     properties: [{ id: "p5", name: "Cost", value: "12", kind: "cost", currency: "USD" }],
   },
   {
@@ -67,7 +72,7 @@ const seedStages: CanvasStage[] = [
     type: "Storage",
     platform: "Snowflake",
     iconKey: "database",
-    color: "#2f9b86",
+    color: "#2A2ACF",
     properties: [{ id: "p6", name: "Duration", value: "18", kind: "duration", unit: "mins" }, { id: "p7", name: "Rows", value: "62,800", kind: "rows", unit: "rows" }],
   },
   {
@@ -76,13 +81,59 @@ const seedStages: CanvasStage[] = [
     type: "Automation",
     platform: "HubSpot",
     iconKey: "terminal",
-    color: "#e26b55",
+    color: "#2A2ACF",
     properties: [{ id: "p8", name: "Owner", value: "Marketing Ops", kind: "owner" }],
   },
 ];
 
 function createId(prefix: string) {
   return `${prefix}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function numericValue(value: string) {
+  const parsed = Number(value.replace(/,/g, ""));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function durationInMinutes(property: StageProperty) {
+  const value = numericValue(property.value);
+  if (property.unit === "days") return value * 24 * 60;
+  if (property.unit === "hours") return value * 60;
+  return value;
+}
+
+function formatDuration(minutes: number) {
+  if (minutes >= 1440 && minutes % 1440 === 0) return `${minutes / 1440} days`;
+  if (minutes >= 60) return `${Number((minutes / 60).toFixed(1))} hours`;
+  return `${Number(minutes.toFixed(1))} mins`;
+}
+
+function targetInMinutes(value: string, unit: string) {
+  return durationInMinutes({ id: "target", name: "SLA", value, kind: "sla", unit });
+}
+
+function daysUntil(date: string) {
+  if (!date) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const target = new Date(`${date}T00:00:00`);
+  return Math.ceil((target.getTime() - today.getTime()) / 86_400_000);
+}
+
+function formatShortDate(date: string) {
+  if (!date) return "Not set";
+  return new Intl.DateTimeFormat(undefined, { day: "2-digit", month: "short", year: "numeric" }).format(new Date(`${date}T00:00:00`));
+}
+
+function propertyKind(property: StageProperty): PropertyKind {
+  if (property.kind) return property.kind;
+  const name = property.name.toLowerCase();
+  if (name.includes("duration")) return "duration";
+  if (name.includes("cost")) return "cost";
+  if (name.includes("row")) return "rows";
+  if (name.includes("owner")) return "owner";
+  if (name.includes("sla")) return "sla";
+  return "custom";
 }
 
 type SearchableOption = { value: string; label: string };
@@ -99,6 +150,8 @@ function SearchableSelect({ value, options, onChange, ariaLabel, className = "" 
 export default function DecisionCanvasPage() {
   const [processName, setProcessName] = useState("");
   const [projectStatus, setProjectStatus] = useState<CanvasStatus>("draft");
+  const [environment, setEnvironment] = useState<CanvasEnvironment>("development");
+  const [goLiveDate, setGoLiveDate] = useState("");
   const [projectBudget, setProjectBudget] = useState("");
   const [budgetCurrency, setBudgetCurrency] = useState("USD");
   const [projectSla, setProjectSla] = useState("");
@@ -108,12 +161,16 @@ export default function DecisionCanvasPage() {
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [showPropertyMenu, setShowPropertyMenu] = useState(false);
   const [zoom, setZoom] = useState(100);
+  const [activeTool, setActiveTool] = useState<"select" | "pan">("select");
+  const [isPanning, setIsPanning] = useState(false);
   const [message, setMessage] = useState("");
   const [hydrated, setHydrated] = useState(false);
   const [versions, setVersions] = useState<CanvasVersion[]>([]);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [versionTags, setVersionTags] = useState<string[]>([]);
   const importInputRef = useRef<HTMLInputElement>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const panStartRef = useRef<{ pointerId: number; x: number; y: number; scrollLeft: number; scrollTop: number } | null>(null);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -123,9 +180,11 @@ export default function DecisionCanvasPage() {
       setVersionTags(localVersions[0]?.tags ?? []);
       if (saved) {
         try {
-          const draft = JSON.parse(saved) as { name?: string; status?: CanvasStatus; budget?: string; budgetCurrency?: string; sla?: string; slaUnit?: string; stages?: CanvasStage[] };
+          const draft = JSON.parse(saved) as { name?: string; status?: CanvasStatus; environment?: CanvasEnvironment; goLiveDate?: string; budget?: string; budgetCurrency?: string; sla?: string; slaUnit?: string; stages?: CanvasStage[] };
           if (draft.name) setProcessName(draft.name);
           if (draft.status && statusOptions.some((option) => option.value === draft.status)) setProjectStatus(draft.status);
+          if (draft.environment && environmentOptions.some((option) => option.value === draft.environment)) setEnvironment(draft.environment);
+          if (draft.goLiveDate !== undefined) setGoLiveDate(draft.goLiveDate);
           if (draft.budget !== undefined) setProjectBudget(draft.budget);
           if (draft.budgetCurrency) setBudgetCurrency(draft.budgetCurrency);
           if (draft.sla !== undefined) setProjectSla(draft.sla);
@@ -145,11 +204,16 @@ export default function DecisionCanvasPage() {
 
   useEffect(() => {
     if (!hydrated) return;
-    writeCanvasDraft({ name: processName, status: projectStatus, budget: projectBudget, budgetCurrency, sla: projectSla, slaUnit: projectSlaUnit, stages });
-  }, [budgetCurrency, hydrated, processName, projectBudget, projectSla, projectSlaUnit, projectStatus, stages]);
+    writeCanvasDraft({ name: processName, status: projectStatus, environment, goLiveDate, budget: projectBudget, budgetCurrency, sla: projectSla, slaUnit: projectSlaUnit, stages });
+  }, [budgetCurrency, environment, goLiveDate, hydrated, processName, projectBudget, projectSla, projectSlaUnit, projectStatus, stages]);
 
   const selectedStage = stages.find((stage) => stage.id === selectedId) ?? null;
   const totalProperties = useMemo(() => stages.reduce((total, stage) => total + stage.properties.length, 0), [stages]);
+  const totalCost = useMemo(() => stages.reduce((total, stage) => total + stage.properties.filter((property) => propertyKind(property) === "cost").reduce((sum, property) => sum + numericValue(property.value), 0), 0), [stages]);
+  const totalLatencyMinutes = useMemo(() => stages.reduce((total, stage) => total + stage.properties.filter((property) => propertyKind(property) === "duration").reduce((sum, property) => sum + durationInMinutes(property), 0), 0), [stages]);
+  const budgetTotal = numericValue(projectBudget);
+  const slaTargetMinutes = targetInMinutes(projectSla, projectSlaUnit);
+  const pendingDays = daysUntil(goLiveDate);
 
   function updateStage(patch: Partial<CanvasStage>) {
     if (!selectedStage) return;
@@ -185,17 +249,6 @@ export default function DecisionCanvasPage() {
     setMessage("Stage removed");
   }
 
-  function propertyKind(property: StageProperty): PropertyKind {
-    if (property.kind) return property.kind;
-    const name = property.name.toLowerCase();
-    if (name.includes("duration")) return "duration";
-    if (name.includes("cost")) return "cost";
-    if (name.includes("row")) return "rows";
-    if (name.includes("owner")) return "owner";
-    if (name.includes("sla")) return "sla";
-    return "custom";
-  }
-
   function addProperty(definition?: (typeof propertyPresets)[number]) {
     if (!selectedStage) return;
     const baseName = definition?.label ?? "New property";
@@ -229,7 +282,7 @@ export default function DecisionCanvasPage() {
   }
 
   function recordVersion(summary: string) {
-    const draft = { name: processName.trim(), status: projectStatus, budget: projectBudget, budgetCurrency, sla: projectSla, slaUnit: projectSlaUnit, stages };
+    const draft = { name: processName.trim(), status: projectStatus, environment, goLiveDate, budget: projectBudget, budgetCurrency, sla: projectSla, slaUnit: projectSlaUnit, stages };
     const next = nextCanvasVersion(versions, draft, summary, versionTags);
     const updated = [next, ...versions];
     writeCanvasDraft(draft);
@@ -268,22 +321,24 @@ export default function DecisionCanvasPage() {
       return;
     }
     try {
-      const payload = JSON.parse(await file.text()) as { format?: string; canvas?: { name?: string; status?: CanvasStatus; budget?: string; budgetCurrency?: string; sla?: string; slaUnit?: string; stages?: CanvasStage[] }; versions?: CanvasVersion[] };
+      const payload = JSON.parse(await file.text()) as { format?: string; canvas?: { name?: string; status?: CanvasStatus; environment?: CanvasEnvironment; goLiveDate?: string; budget?: string; budgetCurrency?: string; sla?: string; slaUnit?: string; stages?: CanvasStage[] }; versions?: CanvasVersion[] };
       const draft = payload.canvas;
       if (payload.format !== "decla" || !draft || !Array.isArray(draft.stages)) throw new Error("Invalid .decla file");
       const importedStatus = draft.status && statusOptions.some((option) => option.value === draft.status) ? draft.status : "draft";
       setProcessName(draft.name ?? "");
       setProjectStatus(importedStatus);
+      setEnvironment(draft.environment ?? "development");
+      setGoLiveDate(draft.goLiveDate ?? "");
       setProjectBudget(draft.budget ?? "");
       setBudgetCurrency(draft.budgetCurrency ?? "USD");
       setProjectSla(draft.sla ?? "");
       setProjectSlaUnit(draft.slaUnit ?? "days");
       setStages(draft.stages);
       setSelectedId(draft.stages[0]?.id ?? null);
-      const importedVersions = Array.isArray(payload.versions) ? payload.versions.map((version) => ({ ...version, tags: Array.isArray(version.tags) ? version.tags : [] })) : [];
+      const importedVersions = Array.isArray(payload.versions) ? payload.versions.map((version) => ({ ...version, environment: version.environment ?? "development" as const, goLiveDate: version.goLiveDate ?? "", tags: Array.isArray(version.tags) ? version.tags : [] })) : [];
       setVersions(importedVersions);
       setVersionTags(importedVersions[0]?.tags ?? []);
-      writeCanvasDraft({ name: draft.name ?? "", status: importedStatus, budget: draft.budget ?? "", budgetCurrency: draft.budgetCurrency ?? "USD", sla: draft.sla ?? "", slaUnit: draft.slaUnit ?? "days", stages: draft.stages });
+      writeCanvasDraft({ name: draft.name ?? "", status: importedStatus, environment: draft.environment ?? "development", goLiveDate: draft.goLiveDate ?? "", budget: draft.budget ?? "", budgetCurrency: draft.budgetCurrency ?? "USD", sla: draft.sla ?? "", slaUnit: draft.slaUnit ?? "days", stages: draft.stages });
       writeCanvasVersions(importedVersions);
       setMessage(".decla file imported");
     } catch {
@@ -370,12 +425,14 @@ export default function DecisionCanvasPage() {
   }
 
   function clearCanvas() {
-    const hasWorkspaceContent = Boolean(processName || projectStatus !== "draft" || projectBudget || projectSla || versionTags.length || stages.length || versions.length);
+    const hasWorkspaceContent = Boolean(processName || projectStatus !== "draft" || environment !== "development" || goLiveDate || projectBudget || projectSla || versionTags.length || stages.length || versions.length);
     if (!hasWorkspaceContent || window.confirm("Clear this entire decision workspace, including saved versions?")) {
       setStages([]);
       setSelectedId(null);
       setProcessName("");
       setProjectStatus("draft");
+      setEnvironment("development");
+      setGoLiveDate("");
       setProjectBudget("");
       setBudgetCurrency("USD");
       setProjectSla("");
@@ -389,6 +446,30 @@ export default function DecisionCanvasPage() {
     }
   }
 
+  function beginPan(event: ReactPointerEvent<HTMLDivElement>) {
+    if (activeTool !== "pan" || event.button !== 0 || !viewportRef.current) return;
+    const viewport = viewportRef.current;
+    panStartRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, scrollLeft: viewport.scrollLeft, scrollTop: viewport.scrollTop };
+    viewport.setPointerCapture(event.pointerId);
+    setIsPanning(true);
+    event.preventDefault();
+  }
+
+  function movePan(event: ReactPointerEvent<HTMLDivElement>) {
+    const start = panStartRef.current;
+    const viewport = viewportRef.current;
+    if (!start || !viewport || start.pointerId !== event.pointerId) return;
+    viewport.scrollLeft = start.scrollLeft - (event.clientX - start.x);
+    viewport.scrollTop = start.scrollTop - (event.clientY - start.y);
+  }
+
+  function endPan(event: ReactPointerEvent<HTMLDivElement>) {
+    if (panStartRef.current?.pointerId !== event.pointerId) return;
+    if (viewportRef.current?.hasPointerCapture(event.pointerId)) viewportRef.current.releasePointerCapture(event.pointerId);
+    panStartRef.current = null;
+    setIsPanning(false);
+  }
+
   return (
     <AppShell status="ready" action={<button className="toolbar-save" onClick={saveDeclaFile}>Save .decla <span>⌘ S</span></button>}>
       <div className="process-page">
@@ -397,7 +478,12 @@ export default function DecisionCanvasPage() {
             <div className="eyebrow-row"><span className="process-eyebrow">DECISION CANVAS</span>{versions[0] && <span className="version-mini">v{versions[0].version}</span>}</div>
             <div className="process-title-row"><input className="process-title-input" value={processName} onChange={(event) => setProcessName(event.target.value)} placeholder="Untitled decision canvas" aria-label="Decision canvas name" /></div>
             <div className="version-tag-bar"><span>VERSION TAGS <em>Optional</em></span><div>{versionTagOptions.map((tag) => <button key={tag} className={versionTags.includes(tag) ? "selected" : ""} onClick={() => toggleVersionTag(tag)}>{tag}</button>)}</div></div>
-            <div className="project-metadata-row"><label><span>PROJECT BUDGET</span><div className="project-input-group"><input type="number" min="0" step="1" value={projectBudget} onChange={(event) => setProjectBudget(event.target.value)} placeholder="No budget" aria-label="Project budget" /><SearchableSelect value={budgetCurrency} options={currencies.map((currency) => ({ value: currency, label: currency }))} onChange={setBudgetCurrency} ariaLabel="Budget currency" /></div></label><label><span>PROJECT SLA</span><div className="project-input-group"><input type="number" min="0" step="1" value={projectSla} onChange={(event) => setProjectSla(event.target.value)} placeholder="No SLA" aria-label="Project SLA" /><SearchableSelect value={projectSlaUnit} options={durationUnits.map((unit) => ({ value: unit, label: unit }))} onChange={setProjectSlaUnit} ariaLabel="Project SLA unit" /></div></label></div>
+            <div className="project-metadata-row">
+              <label><span>PROJECT BUDGET</span><div className="project-input-group"><input type="number" min="0" step="1" value={projectBudget} onChange={(event) => setProjectBudget(event.target.value)} placeholder="No budget" aria-label="Project budget" /><SearchableSelect value={budgetCurrency} options={currencies.map((currency) => ({ value: currency, label: currency }))} onChange={setBudgetCurrency} ariaLabel="Budget currency" /></div></label>
+              <label><span>PROJECT SLA</span><div className="project-input-group"><input type="number" min="0" step="1" value={projectSla} onChange={(event) => setProjectSla(event.target.value)} placeholder="No SLA" aria-label="Project SLA" /><SearchableSelect value={projectSlaUnit} options={durationUnits.map((unit) => ({ value: unit, label: unit }))} onChange={setProjectSlaUnit} ariaLabel="Project SLA unit" /></div></label>
+              <label className="environment-input"><span>ENVIRONMENT</span><SearchableSelect value={environment} options={environmentOptions} onChange={(value) => setEnvironment(value as CanvasEnvironment)} ariaLabel="Project environment" /></label>
+              <label className="go-live-input"><span>GO-LIVE TARGET</span><input type="date" value={goLiveDate} onChange={(event) => setGoLiveDate(event.target.value)} aria-label="Go-live target date" /></label>
+            </div>
           </div>
           <div className="process-heading-actions">
             <div className="header-status-group"><span className="local-pill"><i /> Local draft</span><label className={`project-status-control header-project-status ${projectStatus}`}><span>PROJECT STATUS</span><SearchableSelect value={projectStatus} options={statusOptions} onChange={(value) => setProjectStatus(value as CanvasStatus)} ariaLabel="Project status" /></label></div><button className="secondary-button" onClick={() => setMessage("Share link copied to clipboard")}>Share</button>
@@ -405,14 +491,24 @@ export default function DecisionCanvasPage() {
           </div>
         </header>
 
+        <section className="project-properties-strip" aria-label="Project properties">
+          <div className="project-properties-title"><span>PROJECT</span><strong>PROPERTIES</strong></div>
+          <div className="project-property-metric"><span>COST / BUDGET</span><strong><em>{budgetCurrency}</em> {totalCost.toLocaleString()} <i>/ {projectBudget ? Number(projectBudget).toLocaleString() : "—"}</i></strong><small>{budgetTotal > 0 ? `${Math.round((totalCost / budgetTotal) * 100)}% of project budget` : "Set a budget to compare"}</small></div>
+          <div className="project-property-metric"><span>LATENCY / SLA</span><strong>{formatDuration(totalLatencyMinutes)} <i>/ {projectSla ? `${projectSla} ${projectSlaUnit}` : "—"}</i></strong><small>{slaTargetMinutes > 0 ? `${Math.round((totalLatencyMinutes / slaTargetMinutes) * 100)}% of SLA target` : "Set an SLA to compare"}</small></div>
+          <div className="project-property-metric"><span>ENVIRONMENT</span><strong className={`environment-badge ${environment}`}><i />{environmentOptions.find((option) => option.value === environment)?.label}</strong><small>Saved with each version</small></div>
+          <div className="project-property-metric"><span>GO-LIVE TARGET</span><strong>{formatShortDate(goLiveDate)}</strong><small>{goLiveDate ? "Target release date" : "Choose a target date"}</small></div>
+          <div className="project-property-metric days-pending"><span>DAYS PENDING</span><strong>{pendingDays === null ? "—" : pendingDays > 0 ? pendingDays : 0}</strong><small>{pendingDays === null ? "No target date" : pendingDays > 0 ? "calendar days remaining" : pendingDays === 0 ? "go live is today" : `${Math.abs(pendingDays)} days past target`}</small></div>
+          <div className="project-property-metric"><span>SCOPE</span><strong>{stages.length} stages</strong><small>{totalProperties} total properties</small></div>
+        </section>
+
         {message && <button className="process-toast" onClick={() => setMessage("")} aria-label="Dismiss message">{message}<span>×</span></button>}
 
         <div className="process-layout">
           <section className="process-canvas-panel">
             <div className="canvas-toolbar">
               <div className="canvas-toolbar-group">
-                <button className="tool-button active" aria-label="Select tool">↖ <span>Select</span></button>
-                <button className="tool-button" aria-label="Hand tool">✋ <span>Pan</span></button>
+                <button className={`tool-button ${activeTool === "select" ? "active" : ""}`} onClick={() => setActiveTool("select")} aria-label="Select tool" aria-pressed={activeTool === "select"}>↖ <span>Select</span></button>
+                <button className={`tool-button ${activeTool === "pan" ? "active" : ""}`} onClick={() => setActiveTool("pan")} aria-label="Pan tool" aria-pressed={activeTool === "pan"}>✋ <span>Pan</span></button>
                 <span className="toolbar-divider" />
                 <div className="add-stage-wrap">
                   <button className="add-stage-button" onClick={() => setShowAddMenu((open) => !open)}>＋ Add stage</button>
@@ -421,7 +517,7 @@ export default function DecisionCanvasPage() {
                     {stageTypes.map((kind) => <button key={kind.key} onClick={() => addStage(kind)}><span className="menu-color" style={{ background: kind.color }} />{kind.label}<span>+</span></button>)}
                     </div>}
                   </div>
-                  <button className="clear-canvas-button" onClick={clearCanvas} disabled={!Boolean(processName || projectStatus !== "draft" || projectBudget || projectSla || versionTags.length || stages.length || versions.length)}>Clear workspace</button>
+                  <button className="clear-canvas-button" onClick={clearCanvas} disabled={!Boolean(processName || projectStatus !== "draft" || environment !== "development" || goLiveDate || projectBudget || projectSla || versionTags.length || stages.length || versions.length)}>Clear workspace</button>
                 </div>
               <div className="canvas-toolbar-group canvas-tools-right">
                 <span className="canvas-stat"><strong>{stages.length}</strong> stages</span>
@@ -430,11 +526,11 @@ export default function DecisionCanvasPage() {
                 <button className="zoom-button" onClick={() => setZoom((value) => Math.max(70, value - 10))}>−</button>
                 <span className="zoom-value">{zoom}%</span>
                 <button className="zoom-button" onClick={() => setZoom((value) => Math.min(130, value + 10))}>+</button>
-                <button className="fit-button" onClick={() => setZoom(100)}>Fit</button>
+                <button className="fit-button" onClick={() => { setZoom(100); viewportRef.current?.scrollTo({ left: 0, top: 0, behavior: "smooth" }); }}>Fit</button>
               </div>
             </div>
 
-                <div className="canvas-viewport">
+            <div ref={viewportRef} className={`canvas-viewport ${activeTool === "pan" ? "pan-mode" : ""} ${isPanning ? "is-panning" : ""}`} onPointerDown={beginPan} onPointerMove={movePan} onPointerUp={endPan} onPointerCancel={endPan}>
               <div className="canvas-surface" style={{ "--canvas-zoom": zoom / 100 } as CSSProperties}>
                 {stages.length === 0 ? <div className="blank-canvas-state"><span className="blank-canvas-mark">＋</span><span className="process-eyebrow">BLANK PROCESS CANVAS</span><h2>Start mapping your process</h2><p>Add a stage to begin, or explore the example business flow.</p><div><button className="primary-button" onClick={() => setShowAddMenu(true)}>＋ Add first stage</button><button className="secondary-button" onClick={loadExample}>Load example</button></div></div> : <>
                   <div className="canvas-label"><span>TRIGGER</span><i /> PROCESS FLOW <i /><span>OUTCOME</span></div>
