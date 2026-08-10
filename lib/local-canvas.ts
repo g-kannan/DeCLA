@@ -24,6 +24,7 @@ export type CanvasVersion = CanvasDraft & {
   version: number;
   createdAt: string;
   summary: string;
+  tags: string[];
 };
 
 export const CANVAS_STORAGE_KEY = "decla-process-canvas-v3";
@@ -47,12 +48,13 @@ export function writeCanvasVersions(versions: CanvasVersion[]) {
   window.localStorage.setItem(VERSIONS_STORAGE_KEY, JSON.stringify(versions));
 }
 
-export function nextCanvasVersion(versions: CanvasVersion[], draft: CanvasDraft, summary = "Saved local canvas") {
+export function nextCanvasVersion(versions: CanvasVersion[], draft: CanvasDraft, summary = "Saved local canvas", tags: string[] = []) {
   return {
     id: `local-version-${Date.now()}`,
     version: (versions[0]?.version ?? 0) + 1,
     createdAt: new Date().toISOString(),
     summary,
+    tags,
     ...draft,
   } satisfies CanvasVersion;
 }

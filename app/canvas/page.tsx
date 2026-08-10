@@ -15,7 +15,7 @@ const stageTypes: { label: string; key: StageKind; color: string }[] = [
   { label: "Automation", key: "terminal", color: "#e26b55" },
 ];
 
-const platforms = ["Salesforce", "HubSpot", "Snowflake", "Databricks", "dbt", "AWS", "Manual", "Other"];
+const platforms = ["Salesforce", "HubSpot", "Snowflake", "Databricks", "dbt", "AWS", "Other"];
 const durationUnits = ["mins", "hours", "days"];
 const rowUnits = ["rows", "rows/day", "rows/month"];
 const currencies = ["USD", "EUR", "GBP", "INR"];
@@ -32,6 +32,7 @@ const statusOptions: { value: CanvasStatus; label: string }[] = [
   { value: "approved", label: "Approved" },
   { value: "archived", label: "Archived" },
 ];
+const versionTagOptions = ["Current", "Proposed", "Draft", "Under review", "Approved"];
 const seedStages: CanvasStage[] = [
   {
     id: "capture-lead",
@@ -84,6 +85,17 @@ function createId(prefix: string) {
   return `${prefix}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+type SearchableOption = { value: string; label: string };
+
+function SearchableSelect({ value, options, onChange, ariaLabel, className = "" }: { value: string; options: SearchableOption[]; onChange: (value: string) => void; ariaLabel: string; className?: string }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const selected = options.find((option) => option.value === value)?.label ?? value;
+  const filtered = options.filter((option) => option.label.toLowerCase().includes(query.toLowerCase()));
+
+  return <div className={`searchable-select ${className}`.trim()}><button type="button" className="searchable-select-trigger" onClick={() => { setOpen((current) => !current); setQuery(""); }} aria-label={ariaLabel} aria-expanded={open}>{selected || "Select..."}<span>⌄</span></button>{open && <div className="searchable-select-menu"><input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Escape") setOpen(false); }} placeholder="Search..." aria-label={`Search ${ariaLabel}`} />{filtered.length ? <div className="searchable-select-options">{filtered.map((option) => <button type="button" key={option.value} className={option.value === value ? "selected" : ""} onClick={() => { onChange(option.value); setOpen(false); setQuery(""); }}>{option.label}</button>)}</div> : <small className="searchable-select-empty">No matches</small>}</div>}</div>;
+}
+
 export default function DecisionCanvasPage() {
   const [processName, setProcessName] = useState("");
   const [projectStatus, setProjectStatus] = useState<CanvasStatus>("draft");
@@ -96,12 +108,15 @@ export default function DecisionCanvasPage() {
   const [hydrated, setHydrated] = useState(false);
   const [versions, setVersions] = useState<CanvasVersion[]>([]);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [versionTags, setVersionTags] = useState<string[]>([]);
   const importInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
       const saved = window.localStorage.getItem(CANVAS_STORAGE_KEY);
-      setVersions(readCanvasVersions());
+      const localVersions = readCanvasVersions();
+      setVersions(localVersions);
+      setVersionTags(localVersions[0]?.tags ?? []);
       if (saved) {
         try {
           const draft = JSON.parse(saved) as { name?: string; status?: CanvasStatus; stages?: CanvasStage[] };
@@ -143,7 +158,7 @@ export default function DecisionCanvasPage() {
       id: createId("stage"),
       name: `New ${kind.label.toLowerCase()}`,
       type: kind.label,
-      platform: "Manual",
+      platform: "Other",
       iconKey: kind.key,
       color: kind.color,
       properties: [],
@@ -207,7 +222,7 @@ export default function DecisionCanvasPage() {
 
   function recordVersion(summary: string) {
     const draft = { name: processName.trim(), status: projectStatus, stages };
-    const next = nextCanvasVersion(versions, draft, summary);
+    const next = nextCanvasVersion(versions, draft, summary, versionTags);
     const updated = [next, ...versions];
     writeCanvasDraft(draft);
     writeCanvasVersions(updated);
@@ -253,14 +268,19 @@ export default function DecisionCanvasPage() {
       setProjectStatus(importedStatus);
       setStages(draft.stages);
       setSelectedId(draft.stages[0]?.id ?? null);
-      const importedVersions = Array.isArray(payload.versions) ? payload.versions : [];
+      const importedVersions = Array.isArray(payload.versions) ? payload.versions.map((version) => ({ ...version, tags: Array.isArray(version.tags) ? version.tags : [] })) : [];
       setVersions(importedVersions);
+      setVersionTags(importedVersions[0]?.tags ?? []);
       writeCanvasDraft({ name: draft.name ?? "", status: importedStatus, stages: draft.stages });
       writeCanvasVersions(importedVersions);
       setMessage(".decla file imported");
     } catch {
       setMessage("This .decla file could not be imported");
     }
+  }
+
+  function toggleVersionTag(tag: string) {
+    setVersionTags((current) => current.includes(tag) ? current.filter((item) => item !== tag) : [...current, tag]);
   }
 
   function exportFileName(extension: string) {
@@ -352,7 +372,8 @@ export default function DecisionCanvasPage() {
         <header className="process-heading">
           <div>
             <div className="eyebrow-row"><span className="process-eyebrow">DECISION CANVAS</span><span className="local-pill"><i /> Local draft</span>{versions[0] && <span className="version-mini">v{versions[0].version}</span>}</div>
-            <div className="process-title-row"><input className="process-title-input" value={processName} onChange={(event) => setProcessName(event.target.value)} placeholder="Untitled decision canvas" aria-label="Decision canvas name" /><label className={`project-status-control ${projectStatus}`}><span>PROJECT STATUS</span><select value={projectStatus} onChange={(event) => setProjectStatus(event.target.value as CanvasStatus)} aria-label="Project status">{statusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label></div>
+            <div className="process-title-row"><input className="process-title-input" value={processName} onChange={(event) => setProcessName(event.target.value)} placeholder="Untitled decision canvas" aria-label="Decision canvas name" /><label className={`project-status-control ${projectStatus}`}><span>PROJECT STATUS</span><SearchableSelect value={projectStatus} options={statusOptions} onChange={(value) => setProjectStatus(value as CanvasStatus)} ariaLabel="Project status" /></label></div>
+            <div className="version-tag-bar"><span>VERSION TAGS <em>Optional</em></span><div>{versionTagOptions.map((tag) => <button key={tag} className={versionTags.includes(tag) ? "selected" : ""} onClick={() => toggleVersionTag(tag)}>{tag}</button>)}</div></div>
           </div>
           <div className="process-heading-actions">
             <button className="secondary-button" onClick={() => setMessage("Share link copied to clipboard")}>Share</button>
@@ -424,14 +445,14 @@ export default function DecisionCanvasPage() {
 
               <div className="inspector-form">
                 <label><span>Name</span><input value={selectedStage.name} onChange={(event) => updateStage({ name: event.target.value })} placeholder="Name this stage" /></label>
-                <label><span>Type</span><select value={selectedStage.iconKey} onChange={(event) => changeType(event.target.value as StageKind)}>{stageTypes.map((type) => <option key={type.key} value={type.key}>{type.label}</option>)}</select></label>
-                <label><span>Platform</span><select value={selectedStage.platform} onChange={(event) => updateStage({ platform: event.target.value })}>{platforms.map((platform) => <option key={platform}>{platform}</option>)}</select></label>
+                <label><span>Type</span><SearchableSelect value={selectedStage.iconKey} options={stageTypes.map((type) => ({ value: type.key, label: type.label }))} onChange={(value) => changeType(value as StageKind)} ariaLabel="Stage type" /></label>
+                <label><span>Platform</span><SearchableSelect value={selectedStage.platform} options={platforms.map((platform) => ({ value: platform, label: platform }))} onChange={(value) => updateStage({ platform: value })} ariaLabel="Stage platform" /></label>
               </div>
 
               <div className="properties-section"><div className="properties-heading"><div><span className="process-eyebrow">CUSTOM DATA</span><strong>Properties</strong></div><div className="property-add-wrap"><button className="add-property-button" onClick={() => setShowPropertyMenu((open) => !open)}>＋ Add property</button>{showPropertyMenu && <div className="floating-menu property-menu"><small>CHOOSE A PROPERTY</small>{propertyPresets.filter((preset) => !selectedStage.properties.some((property) => propertyKind(property) === preset.kind)).map((preset) => <button key={preset.kind} onClick={() => addProperty(preset)}>{preset.label}<span>+</span></button>)}<button onClick={() => addProperty()}><em>＋</em> Custom property</button></div>}</div></div>
                 <p className="properties-help">Add the metrics your team uses to describe this stage.</p>
                 <div className="property-list">
-                  {selectedStage.properties.map((property) => { const kind = propertyKind(property); const numericKind = kind === "cost" || kind === "duration" || kind === "sla" || kind === "rows"; return <div className={`property-row property-${kind}`} key={property.id}><input value={property.name} onChange={(event) => updateProperty(property.id, { name: event.target.value })} aria-label="Property name" /><span>:</span><input className="property-value-input" type={numericKind ? "number" : "text"} min={numericKind ? "0" : undefined} step={kind === "cost" ? "1" : undefined} inputMode={numericKind ? "numeric" : undefined} value={property.value} onChange={(event) => updateProperty(property.id, { value: event.target.value })} placeholder={numericKind ? "0" : "Add value"} aria-label={`${property.name} value`} />{kind === "cost" && <select className="property-meta-select" value={property.currency ?? "USD"} onChange={(event) => updateProperty(property.id, { currency: event.target.value })} aria-label={`${property.name} currency`}>{currencies.map((currency) => <option key={currency}>{currency}</option>)}</select>}{(kind === "duration" || kind === "sla") && <select className="property-meta-select" value={property.unit ?? (kind === "sla" ? "days" : "hours")} onChange={(event) => updateProperty(property.id, { unit: event.target.value })} aria-label={`${property.name} unit`}>{durationUnits.map((unit) => <option key={unit}>{unit}</option>)}</select>}{kind === "rows" && <select className="property-meta-select" value={property.unit ?? "rows"} onChange={(event) => updateProperty(property.id, { unit: event.target.value })} aria-label={`${property.name} unit`}>{rowUnits.map((unit) => <option key={unit}>{unit}</option>)}</select>}<button onClick={() => removeProperty(property.id)} aria-label={`Remove ${property.name} property`}>×</button></div>; })}
+                  {selectedStage.properties.map((property) => { const kind = propertyKind(property); const numericKind = kind === "cost" || kind === "duration" || kind === "sla" || kind === "rows"; return <div className={`property-row property-${kind}`} key={property.id}><input value={property.name} onChange={(event) => updateProperty(property.id, { name: event.target.value })} aria-label="Property name" /><span>:</span><input className="property-value-input" type={numericKind ? "number" : "text"} min={numericKind ? "0" : undefined} step={kind === "cost" ? "1" : undefined} inputMode={numericKind ? "numeric" : undefined} value={property.value} onChange={(event) => updateProperty(property.id, { value: event.target.value })} placeholder={numericKind ? "0" : "Add value"} aria-label={`${property.name} value`} />{kind === "cost" && <SearchableSelect className="property-meta-select" value={property.currency ?? "USD"} options={currencies.map((currency) => ({ value: currency, label: currency }))} onChange={(value) => updateProperty(property.id, { currency: value })} ariaLabel={`${property.name} currency`} />}{(kind === "duration" || kind === "sla") && <SearchableSelect className="property-meta-select" value={property.unit ?? (kind === "sla" ? "days" : "hours")} options={durationUnits.map((unit) => ({ value: unit, label: unit }))} onChange={(value) => updateProperty(property.id, { unit: value })} ariaLabel={`${property.name} unit`} />}{kind === "rows" && <SearchableSelect className="property-meta-select" value={property.unit ?? "rows"} options={rowUnits.map((unit) => ({ value: unit, label: unit }))} onChange={(value) => updateProperty(property.id, { unit: value })} ariaLabel={`${property.name} unit`} />}<button onClick={() => removeProperty(property.id)} aria-label={`Remove ${property.name} property`}>×</button></div>; })}
                   {selectedStage.properties.length === 0 && <div className="properties-empty"><span>⌁</span><p>No custom properties yet.<br />Add duration, cost, rows, or anything useful.</p></div>}
                 </div>
               </div>

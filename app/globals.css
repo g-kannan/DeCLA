@@ -1032,9 +1032,31 @@ input:focus, select:focus, textarea:focus {
 .process-title-input { display: block; width: min(620px, 70vw); margin: 9px 0 4px -7px; padding: 2px 7px; border: 1px solid transparent; border-radius: 7px; color: #1e2634; background: transparent; font-size: clamp(25px, 3vw, 34px); font-weight: 750; letter-spacing: -.045em; line-height: 1.1; }
 .process-title-input:hover, .process-title-input:focus { border-color: #dfe3ea; background: #fff; }
 .process-title-row { display: flex; align-items: center; gap: 14px; }
+.version-tag-bar { display: flex; align-items: center; gap: 9px; margin: 1px 0 4px; }
+.version-tag-bar > span { color: #9aa3ae; font-size: 8px; font-weight: 800; letter-spacing: .1em; }
+.version-tag-bar > span em { margin-left: 3px; color: #b7bdc6; font-size: 8px; font-style: normal; font-weight: 500; letter-spacing: 0; text-transform: none; }
+.version-tag-bar > div { display: flex; flex-wrap: wrap; gap: 4px; }
+.version-tag-bar button { height: 22px; padding: 0 7px; border: 1px solid #e1e5eb; border-radius: 5px; color: #87919f; background: #fff; font-size: 9px; font-weight: 700; }
+.version-tag-bar button:hover { border-color: #c4cbe9; color: #5e68c8; background: #f8f8ff; }
+.version-tag-bar button.selected { border-color: #c7cbed; color: #535fc2; background: #f0f1ff; }
 .project-status-control { display: grid; min-width: 142px; gap: 4px; padding: 6px 9px 7px; border: 1px solid #e2e6ec; border-radius: 8px; background: #fff; }
 .project-status-control > span { color: #9aa3ae; font-size: 8px; font-weight: 800; letter-spacing: .1em; }
 .project-status-control select { padding: 0; border: 0; color: #566174; background: transparent; font-size: 11px; font-weight: 750; outline: 0; }
+.searchable-select { position: relative; width: 100%; min-width: 0; }
+.searchable-select-trigger { display: flex; width: 100%; height: 36px; align-items: center; justify-content: space-between; gap: 8px; padding: 0 10px; border: 1px solid #dfe4ea; border-radius: 6px; color: #394455; background: #fff; font-size: 12px; text-align: left; }
+.searchable-select-trigger:hover { border-color: #c6cdd7; background: #fcfcfd; }
+.searchable-select-trigger > span { color: #9aa3af; font-size: 14px; }
+.searchable-select-menu { position: absolute; top: calc(100% + 5px); right: 0; left: 0; z-index: 40; padding: 6px; border: 1px solid #dfe4ea; border-radius: 8px; background: #fff; box-shadow: 0 12px 26px rgba(29, 40, 58, .16); }
+.searchable-select-menu > input { width: 100%; height: 30px; margin-bottom: 5px; padding: 0 8px; border: 1px solid #e4e7ec; border-radius: 5px; color: #4c5768; background: #fafbfc; font-size: 10px; outline: 0; }
+.searchable-select-menu > input:focus { border-color: #aeb6e7; background: #fff; }
+.searchable-select-options { display: grid; max-height: 170px; gap: 2px; overflow-y: auto; }
+.searchable-select-options button { width: 100%; min-height: 29px; padding: 0 8px; border: 0; border-radius: 5px; color: #5a6575; background: transparent; font-size: 10px; text-align: left; }
+.searchable-select-options button:hover, .searchable-select-options button.selected { color: #515fc5; background: #f1f2ff; }
+.searchable-select-empty { display: block; padding: 8px; color: #9da5b0; font-size: 10px; }
+.project-status-control .searchable-select-trigger { height: auto; padding: 0; border: 0; color: #566174; background: transparent; font-size: 11px; font-weight: 750; }
+.project-status-control .searchable-select-menu { left: auto; width: 170px; }
+.property-row .property-meta-select .searchable-select-trigger { height: 31px; padding: 0 5px; border-color: #e2e6eb; border-radius: 5px; color: #697487; background: #fbfcfd; font-size: 9px; }
+.property-row .property-meta-select .searchable-select-menu { right: auto; left: 0; width: 120px; }
 .project-status-control.under-review { border-color: #ecd9b1; background: #fffaf0; }.project-status-control.under-review select { color: #9a6b20; }
 .project-status-control.approved { border-color: #cce5d6; background: #f4fbf6; }.project-status-control.approved select { color: #327857; }
 .project-status-control.archived { border-color: #dfe3e8; background: #f6f7f8; }.project-status-control.archived select { color: #75808e; }
