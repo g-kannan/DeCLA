@@ -14,6 +14,10 @@ export type CanvasStage = {
 export type CanvasDraft = {
   name: string;
   status: CanvasStatus;
+  budget: string;
+  budgetCurrency: string;
+  sla: string;
+  slaUnit: string;
   stages: CanvasStage[];
 };
 

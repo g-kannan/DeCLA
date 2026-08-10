@@ -27,7 +27,7 @@ export default function DecisionLogPage() {
   }, []);
 
   function restore(version: CanvasVersion) {
-    writeCanvasDraft({ name: version.name, status: version.status, stages: version.stages });
+    writeCanvasDraft({ name: version.name, status: version.status || "draft", budget: version.budget || "", budgetCurrency: version.budgetCurrency || "USD", sla: version.sla || "", slaUnit: version.slaUnit || "days", stages: version.stages });
     window.location.href = "/canvas";
   }
 
@@ -57,7 +57,7 @@ export default function DecisionLogPage() {
 
         <aside className="history-detail">
           <div className="history-detail-head"><div><span>VERSION {selected.version}</span><h2>{selected.name || "Untitled decision canvas"}</h2></div><i className="status-pill published">saved locally</i></div>
-          <dl className="history-facts"><div><dt>Created</dt><dd>{formatDate(selected.createdAt)}</dd></div><div><dt>Status</dt><dd className="capitalize">{(selected.status || "draft").replace("-", " ")}</dd></div><div><dt>Stages</dt><dd>{selected.stages.length}</dd></div><div><dt>Properties</dt><dd>{selected.stages.reduce((sum, stage) => sum + stage.properties.length, 0)}</dd></div></dl>
+          <dl className="history-facts"><div><dt>Created</dt><dd>{formatDate(selected.createdAt)}</dd></div><div><dt>Status</dt><dd className="capitalize">{(selected.status || "draft").replace("-", " ")}</dd></div><div><dt>Budget</dt><dd>{selected.budget ? `${selected.budgetCurrency || "USD"} ${selected.budget}` : "Not set"}</dd></div><div><dt>SLA</dt><dd>{selected.sla ? `${selected.sla} ${selected.slaUnit || "days"}` : "Not set"}</dd></div><div><dt>Stages</dt><dd>{selected.stages.length}</dd></div><div><dt>Properties</dt><dd>{selected.stages.reduce((sum, stage) => sum + stage.properties.length, 0)}</dd></div></dl>
           <div className="history-context"><span>CHANGE SUMMARY</span><p>{selected.summary}</p></div><div className="history-context"><span>TAGS</span><p>{(selected.tags ?? []).join(" · ") || "No tags added"}</p></div>
           <div className="history-stages"><div><h3>Decision path</h3><span>{selected.stages.length} stages</span></div>{selected.stages.map((stage, index) => <article key={stage.id}><span className="stage-index">{String(index + 1).padStart(2, "0")}</span><StageIcon stage={{ label: stage.name, platform: stage.platform, stage_type_key: stage.iconKey, category: stage.type }} /><span><strong>{stage.name}</strong><small>{stage.type} · {stage.platform} · {stage.properties.length} properties</small></span></article>)}</div>
           <button className="secondary-button detail-link" onClick={() => restore(selected)}>Restore this version</button>

@@ -99,6 +99,10 @@ function SearchableSelect({ value, options, onChange, ariaLabel, className = "" 
 export default function DecisionCanvasPage() {
   const [processName, setProcessName] = useState("");
   const [projectStatus, setProjectStatus] = useState<CanvasStatus>("draft");
+  const [projectBudget, setProjectBudget] = useState("");
+  const [budgetCurrency, setBudgetCurrency] = useState("USD");
+  const [projectSla, setProjectSla] = useState("");
+  const [projectSlaUnit, setProjectSlaUnit] = useState("days");
   const [stages, setStages] = useState<CanvasStage[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showAddMenu, setShowAddMenu] = useState(false);
@@ -119,9 +123,13 @@ export default function DecisionCanvasPage() {
       setVersionTags(localVersions[0]?.tags ?? []);
       if (saved) {
         try {
-          const draft = JSON.parse(saved) as { name?: string; status?: CanvasStatus; stages?: CanvasStage[] };
+          const draft = JSON.parse(saved) as { name?: string; status?: CanvasStatus; budget?: string; budgetCurrency?: string; sla?: string; slaUnit?: string; stages?: CanvasStage[] };
           if (draft.name) setProcessName(draft.name);
           if (draft.status && statusOptions.some((option) => option.value === draft.status)) setProjectStatus(draft.status);
+          if (draft.budget !== undefined) setProjectBudget(draft.budget);
+          if (draft.budgetCurrency) setBudgetCurrency(draft.budgetCurrency);
+          if (draft.sla !== undefined) setProjectSla(draft.sla);
+          if (draft.slaUnit) setProjectSlaUnit(draft.slaUnit);
           if (draft.stages?.length) {
             setStages(draft.stages);
             setSelectedId(draft.stages[0].id);
@@ -137,8 +145,8 @@ export default function DecisionCanvasPage() {
 
   useEffect(() => {
     if (!hydrated) return;
-    writeCanvasDraft({ name: processName, status: projectStatus, stages });
-  }, [hydrated, processName, projectStatus, stages]);
+    writeCanvasDraft({ name: processName, status: projectStatus, budget: projectBudget, budgetCurrency, sla: projectSla, slaUnit: projectSlaUnit, stages });
+  }, [budgetCurrency, hydrated, processName, projectBudget, projectSla, projectSlaUnit, projectStatus, stages]);
 
   const selectedStage = stages.find((stage) => stage.id === selectedId) ?? null;
   const totalProperties = useMemo(() => stages.reduce((total, stage) => total + stage.properties.length, 0), [stages]);
@@ -221,7 +229,7 @@ export default function DecisionCanvasPage() {
   }
 
   function recordVersion(summary: string) {
-    const draft = { name: processName.trim(), status: projectStatus, stages };
+    const draft = { name: processName.trim(), status: projectStatus, budget: projectBudget, budgetCurrency, sla: projectSla, slaUnit: projectSlaUnit, stages };
     const next = nextCanvasVersion(versions, draft, summary, versionTags);
     const updated = [next, ...versions];
     writeCanvasDraft(draft);
@@ -260,18 +268,22 @@ export default function DecisionCanvasPage() {
       return;
     }
     try {
-      const payload = JSON.parse(await file.text()) as { format?: string; canvas?: { name?: string; status?: CanvasStatus; stages?: CanvasStage[] }; versions?: CanvasVersion[] };
+      const payload = JSON.parse(await file.text()) as { format?: string; canvas?: { name?: string; status?: CanvasStatus; budget?: string; budgetCurrency?: string; sla?: string; slaUnit?: string; stages?: CanvasStage[] }; versions?: CanvasVersion[] };
       const draft = payload.canvas;
       if (payload.format !== "decla" || !draft || !Array.isArray(draft.stages)) throw new Error("Invalid .decla file");
       const importedStatus = draft.status && statusOptions.some((option) => option.value === draft.status) ? draft.status : "draft";
       setProcessName(draft.name ?? "");
       setProjectStatus(importedStatus);
+      setProjectBudget(draft.budget ?? "");
+      setBudgetCurrency(draft.budgetCurrency ?? "USD");
+      setProjectSla(draft.sla ?? "");
+      setProjectSlaUnit(draft.slaUnit ?? "days");
       setStages(draft.stages);
       setSelectedId(draft.stages[0]?.id ?? null);
       const importedVersions = Array.isArray(payload.versions) ? payload.versions.map((version) => ({ ...version, tags: Array.isArray(version.tags) ? version.tags : [] })) : [];
       setVersions(importedVersions);
       setVersionTags(importedVersions[0]?.tags ?? []);
-      writeCanvasDraft({ name: draft.name ?? "", status: importedStatus, stages: draft.stages });
+      writeCanvasDraft({ name: draft.name ?? "", status: importedStatus, budget: draft.budget ?? "", budgetCurrency: draft.budgetCurrency ?? "USD", sla: draft.sla ?? "", slaUnit: draft.slaUnit ?? "days", stages: draft.stages });
       writeCanvasVersions(importedVersions);
       setMessage(".decla file imported");
     } catch {
@@ -358,11 +370,22 @@ export default function DecisionCanvasPage() {
   }
 
   function clearCanvas() {
-    if (!stages.length || window.confirm("Clear all stages from this process?")) {
+    const hasWorkspaceContent = Boolean(processName || projectStatus !== "draft" || projectBudget || projectSla || versionTags.length || stages.length || versions.length);
+    if (!hasWorkspaceContent || window.confirm("Clear this entire decision workspace, including saved versions?")) {
       setStages([]);
       setSelectedId(null);
+      setProcessName("");
+      setProjectStatus("draft");
+      setProjectBudget("");
+      setBudgetCurrency("USD");
+      setProjectSla("");
+      setProjectSlaUnit("days");
+      setVersionTags([]);
+      setVersions([]);
+      writeCanvasVersions([]);
+      window.localStorage.removeItem(CANVAS_STORAGE_KEY);
       setShowAddMenu(false);
-      setMessage("Canvas cleared");
+      setMessage("Workspace cleared");
     }
   }
 
@@ -371,12 +394,13 @@ export default function DecisionCanvasPage() {
       <div className="process-page">
         <header className="process-heading">
           <div>
-            <div className="eyebrow-row"><span className="process-eyebrow">DECISION CANVAS</span><span className="local-pill"><i /> Local draft</span>{versions[0] && <span className="version-mini">v{versions[0].version}</span>}</div>
-            <div className="process-title-row"><input className="process-title-input" value={processName} onChange={(event) => setProcessName(event.target.value)} placeholder="Untitled decision canvas" aria-label="Decision canvas name" /><label className={`project-status-control ${projectStatus}`}><span>PROJECT STATUS</span><SearchableSelect value={projectStatus} options={statusOptions} onChange={(value) => setProjectStatus(value as CanvasStatus)} ariaLabel="Project status" /></label></div>
+            <div className="eyebrow-row"><span className="process-eyebrow">DECISION CANVAS</span>{versions[0] && <span className="version-mini">v{versions[0].version}</span>}</div>
+            <div className="process-title-row"><input className="process-title-input" value={processName} onChange={(event) => setProcessName(event.target.value)} placeholder="Untitled decision canvas" aria-label="Decision canvas name" /></div>
             <div className="version-tag-bar"><span>VERSION TAGS <em>Optional</em></span><div>{versionTagOptions.map((tag) => <button key={tag} className={versionTags.includes(tag) ? "selected" : ""} onClick={() => toggleVersionTag(tag)}>{tag}</button>)}</div></div>
+            <div className="project-metadata-row"><label><span>PROJECT BUDGET</span><div className="project-input-group"><input type="number" min="0" step="1" value={projectBudget} onChange={(event) => setProjectBudget(event.target.value)} placeholder="No budget" aria-label="Project budget" /><SearchableSelect value={budgetCurrency} options={currencies.map((currency) => ({ value: currency, label: currency }))} onChange={setBudgetCurrency} ariaLabel="Budget currency" /></div></label><label><span>PROJECT SLA</span><div className="project-input-group"><input type="number" min="0" step="1" value={projectSla} onChange={(event) => setProjectSla(event.target.value)} placeholder="No SLA" aria-label="Project SLA" /><SearchableSelect value={projectSlaUnit} options={durationUnits.map((unit) => ({ value: unit, label: unit }))} onChange={setProjectSlaUnit} ariaLabel="Project SLA unit" /></div></label></div>
           </div>
           <div className="process-heading-actions">
-            <button className="secondary-button" onClick={() => setMessage("Share link copied to clipboard")}>Share</button>
+            <div className="header-status-group"><span className="local-pill"><i /> Local draft</span><label className={`project-status-control header-project-status ${projectStatus}`}><span>PROJECT STATUS</span><SearchableSelect value={projectStatus} options={statusOptions} onChange={(value) => setProjectStatus(value as CanvasStatus)} ariaLabel="Project status" /></label></div><button className="secondary-button" onClick={() => setMessage("Share link copied to clipboard")}>Share</button>
             <input ref={importInputRef} className="hidden-file-input" type="file" accept=".decla" onChange={handleImport} /><button className="secondary-button" onClick={() => importInputRef.current?.click()}>Import .decla</button><button className="secondary-button" onClick={saveDraft}>Save version</button><button className="primary-button" onClick={saveDeclaFile}>Save .decla</button><div className="export-menu-wrap"><button className="secondary-button" onClick={() => setShowExportMenu((open) => !open)}>Export <span className="button-caret">⌄</span></button>{showExportMenu && <div className="floating-menu export-menu"><small>EXPORT CANVAS</small><button onClick={saveDeclaFile}>DeCLA file <span>.decla</span></button><button onClick={exportSvg}>SVG image <span>.svg</span></button><button onClick={exportPng}>PNG image <span>.png</span></button></div>}</div>
           </div>
         </header>
@@ -397,7 +421,7 @@ export default function DecisionCanvasPage() {
                     {stageTypes.map((kind) => <button key={kind.key} onClick={() => addStage(kind)}><span className="menu-color" style={{ background: kind.color }} />{kind.label}<span>+</span></button>)}
                     </div>}
                   </div>
-                  <button className="clear-canvas-button" onClick={clearCanvas} disabled={!stages.length}>Clear canvas</button>
+                  <button className="clear-canvas-button" onClick={clearCanvas} disabled={!Boolean(processName || projectStatus !== "draft" || projectBudget || projectSla || versionTags.length || stages.length || versions.length)}>Clear workspace</button>
                 </div>
               <div className="canvas-toolbar-group canvas-tools-right">
                 <span className="canvas-stat"><strong>{stages.length}</strong> stages</span>
