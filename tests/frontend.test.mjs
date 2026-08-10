@@ -78,3 +78,9 @@ test("frontend resolves stage icons from the local public icon library", async (
   assert.match(iconLibrary, /\/icons\/stages/);
   assert.doesNotMatch(iconLibrary, /https?:\/\//);
 });
+
+test("project property dropdowns overlay the fixed properties strip", async () => {
+  const globals = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+  assert.match(globals, /\.project-properties-strip \{[^}]*overflow: visible;/s);
+  assert.match(globals, /\.project-properties-strip \.searchable-select-menu/);
+});
