@@ -141,10 +141,23 @@ type SearchableOption = { value: string; label: string };
 function SearchableSelect({ value, options, onChange, ariaLabel, className = "" }: { value: string; options: SearchableOption[]; onChange: (value: string) => void; ariaLabel: string; className?: string }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const wrapRef = useRef<HTMLDivElement>(null);
   const selected = options.find((option) => option.value === value)?.label ?? value;
   const filtered = options.filter((option) => option.label.toLowerCase().includes(query.toLowerCase()));
 
-  return <div className={`searchable-select ${className}`.trim()}><button type="button" className="searchable-select-trigger" onClick={() => { setOpen((current) => !current); setQuery(""); }} aria-label={ariaLabel} aria-expanded={open}>{selected || "Select..."}<span>⌄</span></button>{open && <div className="searchable-select-menu"><input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Escape") setOpen(false); }} placeholder="Search..." aria-label={`Search ${ariaLabel}`} />{filtered.length ? <div className="searchable-select-options">{filtered.map((option) => <button type="button" key={option.value} className={option.value === value ? "selected" : ""} onClick={() => { onChange(option.value); setOpen(false); setQuery(""); }}>{option.label}</button>)}</div> : <small className="searchable-select-empty">No matches</small>}</div>}</div>;
+  useEffect(() => {
+    if (!open) return;
+    function handleOutside(event: MouseEvent) {
+      if (wrapRef.current && !wrapRef.current.contains(event.target as Node)) {
+        setOpen(false);
+        setQuery("");
+      }
+    }
+    document.addEventListener("mousedown", handleOutside);
+    return () => document.removeEventListener("mousedown", handleOutside);
+  }, [open]);
+
+  return <div ref={wrapRef} className={`searchable-select ${className}`.trim()}><button type="button" className="searchable-select-trigger" onClick={() => { setOpen((current) => !current); setQuery(""); }} aria-label={ariaLabel} aria-expanded={open}>{selected || "Select..."}<span>⌄</span></button>{open && <div className="searchable-select-menu"><input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Escape") setOpen(false); }} placeholder="Search..." aria-label={`Search ${ariaLabel}`} />{filtered.length ? <div className="searchable-select-options">{filtered.map((option) => <button type="button" key={option.value} className={option.value === value ? "selected" : ""} onClick={() => { onChange(option.value); setOpen(false); setQuery(""); }}>{option.label}</button>)}</div> : <small className="searchable-select-empty">No matches</small>}</div>}</div>;
 }
 
 export default function DecisionCanvasPage() {
@@ -360,16 +373,68 @@ export default function DecisionCanvasPage() {
   }
 
   function flowSvg() {
-    const width = Math.max(980, stages.length * 205 + 80);
-    const title = escapeXml(processName.trim() || "Decision canvas");
+    const cardWidth = 180;
+    const cardGap = 40;
+    const leftPad = 40;
+    const stagesWidth = stages.length * (cardWidth + cardGap);
+    const width = Math.max(960, stagesWidth + leftPad * 2);
+    const title = escapeXml(processName.trim() || "Untitled project");
+
+    // Project property summary row
+    const budgetLabel = projectBudget ? `${budgetCurrency} ${Number(projectBudget).toLocaleString()}` : "—";
+    const slaLabel = projectSla ? `${projectSla} ${projectSlaUnit}` : "—";
+    const envLabel = environment.charAt(0).toUpperCase() + environment.slice(1);
+    const goLiveLabel = formatShortDate(goLiveDate);
+    const propSummary = [
+      `Budget: ${budgetLabel}`,
+      `SLA: ${slaLabel}`,
+      `Env: ${envLabel}`,
+      `Go-live: ${goLiveLabel}`,
+      `${stages.length} stage${stages.length !== 1 ? "s" : ""} · ${totalProperties} propert${totalProperties !== 1 ? "ies" : "y"}`,
+    ].join("   ·   ");
+
+    const headerH = 80;
+    const propsH = 32;
+    const canvasY = headerH + propsH + 16;
+    const cardH = 164;
+    const totalH = canvasY + cardH + 40;
+
     const cards = stages.map((stage, index) => {
-      const x = 40 + index * 205;
+      const x = leftPad + index * (cardWidth + cardGap);
+      const cy = canvasY + 42;
       const icon = `${window.location.origin}/icons/stages/${stage.iconKey}.svg`;
-      const nextX = x + 165;
-      const connector = index < stages.length - 1 ? `<line x1="${nextX}" y1="170" x2="${nextX + 40}" y2="170" stroke="#b9c2ce" stroke-width="2"/><path d="M ${nextX + 34} 164 L ${nextX + 41} 170 L ${nextX + 34} 176" fill="none" stroke="#9ba6b4" stroke-width="2"/>` : "";
-      return `${connector}<g><rect x="${x}" y="88" width="165" height="164" rx="10" fill="#ffffff" stroke="${stage.color}" stroke-width="2"/><rect x="${x}" y="88" width="165" height="4" rx="2" fill="${stage.color}"/><text x="${x + 14}" y="111" fill="#9aa4b0" font-size="10" font-family="Arial, sans-serif" font-weight="700">0${index + 1}</text><circle cx="${x + 31}" cy="143" r="20" fill="${stage.color}" fill-opacity=".12"/><image href="${icon}" x="${x + 18}" y="130" width="26" height="26"/><text x="${x + 14}" y="187" fill="#273142" font-size="13" font-family="Arial, sans-serif" font-weight="700">${escapeXml(stage.name || "Untitled stage")}</text><text x="${x + 14}" y="207" fill="${stage.color}" font-size="10" font-family="Arial, sans-serif" font-weight="700">${escapeXml(stage.type)}</text><text x="${x + 14}" y="224" fill="#8792a0" font-size="10" font-family="Arial, sans-serif">${escapeXml(stage.platform)}</text><rect x="${x + 14}" y="233" width="${Math.max(42, stage.properties.length * 11 + 29)}" height="14" rx="3" fill="#f1f3f6"/><text x="${x + 20}" y="243" fill="#7d8795" font-size="8" font-family="Arial, sans-serif" font-weight="700">${stage.properties.length} ${stage.properties.length === 1 ? "property" : "properties"}</text></g>`;
+      const nextX = x + cardWidth;
+      const connector = index < stages.length - 1
+        ? `<line x1="${nextX}" y1="${canvasY + cardH / 2}" x2="${nextX + cardGap}" y2="${canvasY + cardH / 2}" stroke="#c5ccd6" stroke-width="1.5"/><path d="M ${nextX + cardGap - 6} ${canvasY + cardH / 2 - 5} L ${nextX + cardGap} ${canvasY + cardH / 2} L ${nextX + cardGap - 6} ${canvasY + cardH / 2 + 5}" fill="none" stroke="#a9b2bc" stroke-width="1.5"/>`
+        : "";
+      return [
+        connector,
+        `<g>`,
+        `<rect x="${x}" y="${canvasY}" width="${cardWidth}" height="${cardH}" rx="9" fill="#fff" stroke="${stage.color}" stroke-width="1.5"/>`,
+        `<rect x="${x}" y="${canvasY}" width="${cardWidth}" height="3" rx="1.5" fill="${stage.color}"/>`,
+        `<text x="${x + 12}" y="${canvasY + 20}" fill="#a0a9b4" font-size="9" font-family="Arial, sans-serif" font-weight="700">0${index + 1}</text>`,
+        `<circle cx="${x + 30}" cy="${cy}" r="18" fill="${stage.color}" fill-opacity=".1"/>`,
+        `<image href="${icon}" x="${x + 17}" y="${cy - 13}" width="24" height="24"/>`,
+        `<text x="${x + 12}" y="${cy + 34}" fill="#1e2a3a" font-size="12" font-family="Arial, sans-serif" font-weight="700">${escapeXml(stage.name || "Untitled")}</text>`,
+        `<text x="${x + 12}" y="${cy + 51}" fill="${stage.color}" font-size="9" font-family="Arial, sans-serif" font-weight="700">${escapeXml(stage.type)}</text>`,
+        `<text x="${x + 12}" y="${cy + 66}" fill="#8a93a2" font-size="9" font-family="Arial, sans-serif">${escapeXml(stage.platform)}</text>`,
+        stage.properties.length > 0 ? `<rect x="${x + 12}" y="${cy + 75}" width="${Math.min(cardWidth - 24, stage.properties.length * 10 + 32)}" height="13" rx="3" fill="#f2f3f6"/><text x="${x + 18}" y="${cy + 85}" fill="#7d8797" font-size="8" font-family="Arial, sans-serif" font-weight="700">${stage.properties.length} ${stage.properties.length === 1 ? "property" : "properties"}</text>` : "",
+        `</g>`,
+      ].join("");
     }).join("");
-    return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${width}" height="330" viewBox="0 0 ${width} 330"><rect width="100%" height="100%" fill="#fbfcfd"/><text x="40" y="35" fill="#6672cf" font-size="10" font-family="Arial, sans-serif" font-weight="800" letter-spacing="2">DECISION CANVAS</text><text x="40" y="64" fill="#1e2634" font-size="22" font-family="Arial, sans-serif" font-weight="700">${title}</text><text x="40" y="78" fill="#9aa3af" font-size="10" font-family="Arial, sans-serif">${stages.length} stages · exported from DeCLA</text>${cards || `<text x="40" y="150" fill="#9aa3af" font-size="14" font-family="Arial, sans-serif">Blank decision canvas</text>`}</svg>`;
+
+    return [
+      `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${width}" height="${totalH}" viewBox="0 0 ${width} ${totalH}">`,
+      `<rect width="100%" height="100%" fill="#f8f9fb"/>`,
+      // Project name
+      `<text x="${leftPad}" y="38" fill="#1a2233" font-size="20" font-family="Arial, sans-serif" font-weight="700">${title}</text>`,
+      // Properties summary bar
+      `<rect x="${leftPad}" y="${headerH}" width="${width - leftPad * 2}" height="${propsH}" rx="6" fill="#fff" stroke="#e1e4e9"/>`,
+      `<text x="${leftPad + 14}" y="${headerH + 21}" fill="#6b7585" font-size="9.5" font-family="Arial, sans-serif">${escapeXml(propSummary)}</text>`,
+      // Stages
+      stages.length > 0 ? cards : `<text x="${leftPad}" y="${canvasY + 40}" fill="#a0a9b4" font-size="13" font-family="Arial, sans-serif">No stages added yet.</text>`,
+      `</svg>`,
+    ].join("");
   }
 
   function exportSvg() {
@@ -471,7 +536,7 @@ export default function DecisionCanvasPage() {
   }
 
   return (
-    <AppShell status="ready" action={<button className="toolbar-save" onClick={saveDeclaFile}>Save .decla <span>⌘ S</span></button>}>
+    <AppShell status="ready" action={<button className="toolbar-save" onClick={saveDeclaFile}>Save to File <span>⌘ S</span></button>}>
       <div className="process-page">
         <header className="process-heading">
           <div>
@@ -487,18 +552,42 @@ export default function DecisionCanvasPage() {
           </div>
           <div className="process-heading-actions">
             <div className="header-status-group"><span className="local-pill"><i /> Local draft</span><label className={`project-status-control header-project-status ${projectStatus}`}><span>PROJECT STATUS</span><SearchableSelect value={projectStatus} options={statusOptions} onChange={(value) => setProjectStatus(value as CanvasStatus)} ariaLabel="Project status" /></label></div><button className="secondary-button" onClick={() => setMessage("Share link copied to clipboard")}>Share</button>
-            <input ref={importInputRef} className="hidden-file-input" type="file" accept=".decla" onChange={handleImport} /><button className="secondary-button" onClick={() => importInputRef.current?.click()}>Import .decla</button><button className="secondary-button" onClick={saveDraft}>Save version</button><button className="primary-button" onClick={saveDeclaFile}>Save .decla</button><div className="export-menu-wrap"><button className="secondary-button" onClick={() => setShowExportMenu((open) => !open)}>Export <span className="button-caret">⌄</span></button>{showExportMenu && <div className="floating-menu export-menu"><small>EXPORT CANVAS</small><button onClick={saveDeclaFile}>DeCLA file <span>.decla</span></button><button onClick={exportSvg}>SVG image <span>.svg</span></button><button onClick={exportPng}>PNG image <span>.png</span></button></div>}</div>
+            <input ref={importInputRef} className="hidden-file-input" type="file" accept=".decla" onChange={handleImport} /><button className="secondary-button" onClick={() => importInputRef.current?.click()}>Import .decla</button><button className="secondary-button" onClick={saveDraft}>Save version</button><button className="primary-button" onClick={saveDeclaFile}>Save to File</button><div className="export-menu-wrap"><button className="secondary-button" onClick={() => setShowExportMenu((open) => !open)}>Export <span className="button-caret">⌄</span></button>{showExportMenu && <div className="floating-menu export-menu"><small>EXPORT CANVAS</small><button onClick={exportSvg}>SVG image <span>.svg</span></button><button onClick={exportPng}>PNG image <span>.png</span></button></div>}</div><button className="clear-canvas-button" onClick={clearCanvas} disabled={!Boolean(processName || projectStatus !== "draft" || environment !== "development" || goLiveDate || projectBudget || projectSla || versionTags.length || stages.length || versions.length)}>Clear workspace</button>
           </div>
         </header>
 
         <section className="project-properties-strip" aria-label="Project properties">
           <div className="project-properties-title"><span>PROJECT</span><strong>PROPERTIES</strong></div>
-          <div className="project-property-metric"><span>COST / BUDGET</span><strong><em>{budgetCurrency}</em> {totalCost.toLocaleString()} <i>/ {projectBudget ? Number(projectBudget).toLocaleString() : "—"}</i></strong><small>{budgetTotal > 0 ? `${Math.round((totalCost / budgetTotal) * 100)}% of project budget` : "Set a budget to compare"}</small></div>
-          <div className="project-property-metric"><span>LATENCY / SLA</span><strong>{formatDuration(totalLatencyMinutes)} <i>/ {projectSla ? `${projectSla} ${projectSlaUnit}` : "—"}</i></strong><small>{slaTargetMinutes > 0 ? `${Math.round((totalLatencyMinutes / slaTargetMinutes) * 100)}% of SLA target` : "Set an SLA to compare"}</small></div>
-          <div className="project-property-metric"><span>ENVIRONMENT</span><strong className={`environment-badge ${environment}`}><i />{environmentOptions.find((option) => option.value === environment)?.label}</strong><small>Saved with each version</small></div>
-          <div className="project-property-metric"><span>GO-LIVE TARGET</span><strong>{formatShortDate(goLiveDate)}</strong><small>{goLiveDate ? "Target release date" : "Choose a target date"}</small></div>
-          <div className="project-property-metric days-pending"><span>DAYS PENDING</span><strong>{pendingDays === null ? "—" : pendingDays > 0 ? pendingDays : 0}</strong><small>{pendingDays === null ? "No target date" : pendingDays > 0 ? "calendar days remaining" : pendingDays === 0 ? "go live is today" : `${Math.abs(pendingDays)} days past target`}</small></div>
-          <div className="project-property-metric"><span>SCOPE</span><strong>{stages.length} stages</strong><small>{totalProperties} total properties</small></div>
+          <div className="project-property-metric">
+            <span>BUDGET / RUN</span>
+            <strong><em>{budgetCurrency}</em>{totalCost.toLocaleString()}<span className="prop-cap">cap</span> <em>{budgetCurrency}</em>{projectBudget ? Number(projectBudget).toLocaleString() : "—"}</strong>
+            <small>{budgetTotal > 0 ? `${Math.round((totalCost / budgetTotal) * 100)}% of run budget` : "Set a budget to compare"}</small>
+          </div>
+          <div className="project-property-metric">
+            <span>SLA TARGET</span>
+            <strong>{formatDuration(totalLatencyMinutes)}</strong>
+            <small>{slaTargetMinutes > 0 ? `${Math.round((totalLatencyMinutes / slaTargetMinutes) * 100)}% · end-to-end ceiling` : "end-to-end ceiling"}</small>
+          </div>
+          <div className="project-property-metric">
+            <span>ENVIRONMENT</span>
+            <strong className={`environment-badge ${environment}`}><i />{environmentOptions.find((option) => option.value === environment)?.label}</strong>
+            <small>{environment === "production" ? "Live traffic" : environment === "staging" ? "Pre-production" : "Sandbox"}</small>
+          </div>
+          <div className="project-property-metric">
+            <span>GO-LIVE TARGET</span>
+            <strong>{formatShortDate(goLiveDate)}</strong>
+            <small>{goLiveDate ? "Target release date" : "Choose a target date"}</small>
+          </div>
+          <div className="project-property-metric days-pending">
+            <span>DAYS PENDING</span>
+            <strong>{pendingDays === null ? "—" : pendingDays > 0 ? pendingDays : 0}</strong>
+            <small>{pendingDays === null ? "No target date" : pendingDays > 0 ? "calendar days remaining" : pendingDays === 0 ? "go live is today" : `${Math.abs(pendingDays)} days past target`}</small>
+          </div>
+          <div className="project-property-metric">
+            <span>SCOPE</span>
+            <strong>{stages.length}<span className="prop-cap"> stages</span></strong>
+            <small>{totalProperties} total properties</small>
+          </div>
         </section>
 
         {message && <button className="process-toast" onClick={() => setMessage("")} aria-label="Dismiss message">{message}<span>×</span></button>}
@@ -517,7 +606,6 @@ export default function DecisionCanvasPage() {
                     {stageTypes.map((kind) => <button key={kind.key} onClick={() => addStage(kind)}><span className="menu-color" style={{ background: kind.color }} />{kind.label}<span>+</span></button>)}
                     </div>}
                   </div>
-                  <button className="clear-canvas-button" onClick={clearCanvas} disabled={!Boolean(processName || projectStatus !== "draft" || environment !== "development" || goLiveDate || projectBudget || projectSla || versionTags.length || stages.length || versions.length)}>Clear workspace</button>
                 </div>
               <div className="canvas-toolbar-group canvas-tools-right">
                 <span className="canvas-stat"><strong>{stages.length}</strong> stages</span>
