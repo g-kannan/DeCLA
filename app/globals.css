@@ -1472,7 +1472,7 @@ input:focus, select:focus, textarea:focus {
 .properties-help { margin: 7px 0 12px; color: var(--muted); font-size: 10px; line-height: 1.45; }
 .property-list { display: grid; gap: 6px; }
 .property-row { display: grid; grid-template-columns: minmax(0,1fr) auto minmax(0,1fr) 19px; align-items: center; gap: 5px; }
-.property-row.property-duration, .property-row.property-sla, .property-row.property-rows { grid-template-columns: minmax(0,1fr) auto minmax(0,.8fr) 73px 19px; }
+.property-row.property-duration, .property-row.property-sla { grid-template-columns: minmax(0,1fr) auto minmax(0,.8fr) 73px 19px; }
 .property-row.property-cost { grid-template-columns: minmax(0,1fr) auto minmax(0,.7fr) 52px 19px; }
 .property-row input { min-width: 0; height: 31px; padding: 0 7px; border: 1px solid var(--line); border-radius: 5px; color: var(--ink); background: var(--surface-raised); font-size: 10px; }
 .property-row input:focus { border-color: var(--primary); background: var(--surface); outline: 0; }
