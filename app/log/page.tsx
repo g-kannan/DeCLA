@@ -32,7 +32,7 @@ export default function DecisionLogPage() {
   }
 
   return (
-    <AppShell status="ready">
+    <AppShell>
       <header className="page-heading">
         <div><span>VERSION HISTORY</span><h1>Decision log</h1><p>Review saved versions of this decision canvas and restore an earlier process.</p></div>
         <Link className="primary-button detail-link" href="/canvas">Open canvas</Link>

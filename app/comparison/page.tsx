@@ -90,7 +90,7 @@ export default function ComparisonPage() {
   }
 
   return (
-    <AppShell status="ready">
+    <AppShell>
       <header className="page-heading"><div><span>DECISION IMPACT</span><h1>Comparison</h1><p>Compare environments, project targets, property totals, and stage changes between saved canvas versions.</p></div><Link className="secondary-button detail-link" href="/canvas">Open canvas</Link></header>
 
       {!hydrated && <div className="center-state compact-state"><div className="spinner" /><p>Loading local versions...</p></div>}

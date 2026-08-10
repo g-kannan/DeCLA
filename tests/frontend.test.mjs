@@ -11,12 +11,19 @@ test("frontend exposes a process canvas with local editing controls", async () =
     readFile(new URL("../app/components/app-shell.tsx", import.meta.url), "utf8"),
   ]);
   assert.match(home, /redirect\("\/canvas"\)/);
-  assert.match(shell, /"\/canvas": "Decision canvas"/);
+  assert.doesNotMatch(shell, /workspaceContexts|workspace-context/);
+  assert.doesNotMatch(shell, /workspace-bar|topbar-actions|action\?: ReactNode/);
+  assert.doesNotMatch(shell, /status\?:|Local draft|save-status/);
+  assert.doesNotMatch(canvas, /action=|toolbar-save/);
+  assert.doesNotMatch(canvas, /Local draft|local-pill/);
+  assert.match(shell, /sidebar-footer[\s\S]*<ThemeToggle \/>/);
   assert.doesNotMatch(shell, /Business process workspace/);
   assert.match(canvas, /Add stage/);
   assert.match(canvas, /Add property/);
-  assert.match(canvas, /BUDGET \/ RUN/);
+  assert.match(canvas, /<span>BUDGET<\/span>/);
   assert.match(canvas, /SLA TARGET/);
+  assert.doesNotMatch(canvas, /PROJECT BUDGET|PROJECT SLA TARGET|BUDGET \/ RUN|Run:/);
+  assert.doesNotMatch(canvas, /Live traffic|Pre-production|Sandbox environment/);
   assert.match(canvas, /GO-LIVE TARGET/);
   assert.match(canvas, /beginPan/);
   assert.match(canvas, /localStorage/);

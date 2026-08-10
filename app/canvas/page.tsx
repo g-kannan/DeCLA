@@ -535,7 +535,7 @@ export default function DecisionCanvasPage() {
   }
 
   return (
-    <AppShell status="ready" action={<button className="toolbar-save" onClick={saveDeclaFile}>Save to File <span>⌘ S</span></button>}>
+    <AppShell>
       <div className="process-page">
         <header className="process-heading">
           <div>
@@ -543,7 +543,7 @@ export default function DecisionCanvasPage() {
             <div className="version-tag-bar"><span>VERSION TAGS <em>Optional</em></span><div>{versionTagOptions.map((tag) => <button key={tag} className={versionTags.includes(tag) ? "selected" : ""} onClick={() => toggleVersionTag(tag)}>{tag}</button>)}</div></div>
           </div>
           <div className="process-heading-actions">
-            <div className="header-status-group"><span className="local-pill"><i /> Local draft</span><label className={`project-status-control header-project-status ${projectStatus}`}><span>PROJECT STATUS</span><SearchableSelect value={projectStatus} options={statusOptions} onChange={(value) => setProjectStatus(value as CanvasStatus)} ariaLabel="Project status" /></label></div><button className="secondary-button" onClick={() => setMessage("Share link copied to clipboard")}>Share</button>
+            <div className="header-status-group"><label className={`project-status-control header-project-status ${projectStatus}`}><span>PROJECT STATUS</span><SearchableSelect value={projectStatus} options={statusOptions} onChange={(value) => setProjectStatus(value as CanvasStatus)} ariaLabel="Project status" /></label></div><button className="secondary-button" onClick={() => setMessage("Share link copied to clipboard")}>Share</button>
             <input ref={importInputRef} className="hidden-file-input" type="file" accept=".decla" onChange={handleImport} /><button className="secondary-button" onClick={() => importInputRef.current?.click()}>Import file</button><button className="secondary-button" onClick={saveDraft}>Save version</button><button className="primary-button" onClick={saveDeclaFile}>Save to File</button><div className="export-menu-wrap"><button className="secondary-button" onClick={() => setShowExportMenu((open) => !open)}>Export <span className="button-caret">⌄</span></button>{showExportMenu && <div className="floating-menu export-menu"><small>EXPORT CANVAS</small><button onClick={exportSvg}>SVG image <span>.svg</span></button><button onClick={exportPng}>PNG image <span>.png</span></button></div>}</div><button className="clear-canvas-button" onClick={clearCanvas} disabled={!Boolean(processName || projectStatus !== "draft" || environment !== "development" || goLiveDate || projectBudget || projectSla || versionTags.length || stages.length || versions.length)}>Clear workspace</button>
           </div>
         </header>
@@ -551,27 +551,26 @@ export default function DecisionCanvasPage() {
         <section className="project-properties-strip" aria-label="Project properties">
           <div className="project-properties-title"><span>PROJECT</span><strong>PROPERTIES</strong></div>
           <div className="project-property-metric editable-metric">
-            <span>PROJECT BUDGET / RUN</span>
+            <span>BUDGET</span>
             <div className="prop-control-group">
               <input type="number" min="0" step="1" value={projectBudget} onChange={(event) => setProjectBudget(event.target.value)} placeholder="No budget" aria-label="Project budget" className="prop-input-number" />
               <SearchableSelect value={budgetCurrency} options={currencies.map((currency) => ({ value: currency, label: currency }))} onChange={setBudgetCurrency} ariaLabel="Budget currency" className="prop-select-currency" />
             </div>
-            <small>Run: <em>{budgetCurrency}</em> {totalCost.toLocaleString()}{budgetTotal > 0 ? ` · ${Math.round((totalCost / budgetTotal) * 100)}% of cap` : " · Set budget cap"}</small>
+            <small><em>{budgetCurrency}</em> {totalCost.toLocaleString()}{budgetTotal > 0 ? ` · ${Math.round((totalCost / budgetTotal) * 100)}% of cap` : " · Set budget cap"}</small>
           </div>
           <div className="project-property-metric editable-metric">
-            <span>PROJECT SLA TARGET</span>
+            <span>SLA TARGET</span>
             <div className="prop-control-group">
               <input type="number" min="0" step="1" value={projectSla} onChange={(event) => setProjectSla(event.target.value)} placeholder="No SLA" aria-label="Project SLA" className="prop-input-number" />
               <SearchableSelect value={projectSlaUnit} options={durationUnits.map((unit) => ({ value: unit, label: unit }))} onChange={setProjectSlaUnit} ariaLabel="Project SLA unit" className="prop-select-unit" />
             </div>
-            <small>Run: {formatDuration(totalLatencyMinutes)}{slaTargetMinutes > 0 ? ` · ${Math.round((totalLatencyMinutes / slaTargetMinutes) * 100)}% ceiling` : " · end-to-end ceiling"}</small>
+            <small>{formatDuration(totalLatencyMinutes)}{slaTargetMinutes > 0 ? ` · ${Math.round((totalLatencyMinutes / slaTargetMinutes) * 100)}% ceiling` : " · end-to-end ceiling"}</small>
           </div>
           <div className="project-property-metric editable-metric">
             <span>ENVIRONMENT</span>
             <div className="prop-control-group">
               <SearchableSelect value={environment} options={environmentOptions} onChange={(value) => setEnvironment(value as CanvasEnvironment)} ariaLabel="Project environment" className={`prop-select-env ${environment}`} />
             </div>
-            <small>{environment === "production" ? "Live traffic" : environment === "staging" ? "Pre-production" : "Sandbox environment"}</small>
           </div>
           <div className="project-property-metric editable-metric">
             <span>GO-LIVE TARGET</span>
