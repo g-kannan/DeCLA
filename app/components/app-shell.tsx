@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
+import { ThemeToggle } from "./theme-toggle";
 
 type AppShellProps = {
   children: ReactNode;
@@ -51,7 +52,10 @@ export function AppShell({ children, status = "ready", action, activeDataflowId 
       <section className="workspace">
         <header className="workspace-bar">
           <span className="workspace-context">Business process workspace</span>
-          <div className="topbar-actions">{action}</div>
+          <div className="topbar-actions">
+            <ThemeToggle />
+            {action}
+          </div>
         </header>
         <div className="page">{children}</div>
       </section>

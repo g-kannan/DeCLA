@@ -14,8 +14,8 @@ test("frontend exposes a process canvas with local editing controls", async () =
   assert.match(canvas, /DECISION CANVAS/);
   assert.match(canvas, /Add stage/);
   assert.match(canvas, /Add property/);
-  assert.match(canvas, /COST \/ BUDGET/);
-  assert.match(canvas, /LATENCY \/ SLA/);
+  assert.match(canvas, /BUDGET \/ RUN/);
+  assert.match(canvas, /SLA TARGET/);
   assert.match(canvas, /GO-LIVE TARGET/);
   assert.match(canvas, /beginPan/);
   assert.match(canvas, /localStorage/);
@@ -27,6 +27,19 @@ test("frontend exposes a process canvas with local editing controls", async () =
   assert.match(shell, /\/canvas/);
   assert.match(shell, /\/log/);
   assert.match(shell, /\/comparison/);
+});
+
+test("frontend includes theme toggle and zero-FOUC script", async () => {
+  const [shell, layout, themeToggle] = await Promise.all([
+    readFile(new URL("../app/components/app-shell.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/components/theme-toggle.tsx", import.meta.url), "utf8"),
+  ]);
+  assert.match(shell, /ThemeToggle/);
+  assert.match(layout, /decla_theme/);
+  assert.match(layout, /data-theme/);
+  assert.match(themeToggle, /localStorage\.setItem\("decla_theme"/);
+  assert.match(themeToggle, /setAttribute\("data-theme"/);
 });
 
 test("frontend canvas is independent of the backend runtime", async () => {
