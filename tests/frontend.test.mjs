@@ -11,13 +11,14 @@ test("frontend exposes a process canvas with local editing controls", async () =
     readFile(new URL("../app/components/app-shell.tsx", import.meta.url), "utf8"),
   ]);
   assert.match(home, /redirect\("\/canvas"\)/);
-  assert.match(canvas, /PROCESS CANVAS/);
+  assert.match(canvas, /DECISION CANVAS/);
   assert.match(canvas, /Add stage/);
   assert.match(canvas, /Add property/);
   assert.match(canvas, /localStorage/);
   assert.match(log, /Decision log/);
-  assert.match(log, /listVersions/);
-  assert.match(comparison, /Performance comparison/);
+  assert.match(log, /readCanvasVersions/);
+  assert.match(comparison, /PROPERTY AGGREGATES/);
+  assert.match(comparison, /STAGE DIFF/);
   assert.match(shell, /\/canvas/);
   assert.match(shell, /\/log/);
   assert.match(shell, /\/comparison/);

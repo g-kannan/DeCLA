@@ -38,7 +38,7 @@ export function AppShell({ children, status = "ready", action, activeDataflowId 
         </nav>
         <div className="sidebar-status">
           <span className={`save-status ${status === "ready" ? "saved" : status}`}>
-            <i />{status === "saving" ? "Saving" : status === "loading" ? "Loading" : status === "error" ? "API error" : "Neon connected"}
+            <i />{status === "saving" ? "Saving" : status === "loading" ? "Loading" : status === "error" ? "Error" : "Local draft"}
           </span>
         </div>
       </aside>

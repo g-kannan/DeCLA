@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "DeCLA — Decision Latency Architecture",
-  description: "Version, compare, and measure source-to-decision dataflows.",
+  description: "Map, version, compare, and save business decision processes locally.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
