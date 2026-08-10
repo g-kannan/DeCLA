@@ -12,8 +12,8 @@ type AppShellProps = {
 };
 
 const navigation = [
-  { href: "/canvas", label: "Decision canvas", icon: "C" },
-  { href: "/log", label: "Decision log", icon: "L" },
+  { href: "/canvas", label: "Process canvas", icon: "C" },
+  { href: "/log", label: "Version log", icon: "L" },
   { href: "/comparison", label: "Comparison", icon: "↔" },
 ];
 
@@ -26,7 +26,7 @@ export function AppShell({ children, status = "ready", action, activeDataflowId 
       <aside className="sidebar">
         <Link className="brand" href={`/canvas${suffix}`} aria-label="DeCLA home">
           <span className="brand-mark">D</span>
-          <span className="brand-copy"><strong>DeCLA</strong><small>Decision latency architecture</small></span>
+          <span className="brand-copy"><strong>DeCLA</strong><small>Business process studio</small></span>
         </Link>
         <nav className="primary-nav" aria-label="Primary navigation">
           {navigation.map((item) => (
@@ -44,7 +44,7 @@ export function AppShell({ children, status = "ready", action, activeDataflowId 
       </aside>
       <section className="workspace">
         <header className="workspace-bar">
-          <span className="workspace-context">Decision architecture workspace</span>
+          <span className="workspace-context">Business process workspace</span>
           <div className="topbar-actions">{action}</div>
         </header>
         <div className="page">{children}</div>

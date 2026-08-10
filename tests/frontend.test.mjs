@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-test("frontend exposes separate decision canvas, log, and comparison pages", async () => {
+test("frontend exposes a process canvas with local editing controls", async () => {
   const [home, canvas, log, comparison, shell] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/canvas/page.tsx", import.meta.url), "utf8"),
@@ -11,9 +11,10 @@ test("frontend exposes separate decision canvas, log, and comparison pages", asy
     readFile(new URL("../app/components/app-shell.tsx", import.meta.url), "utf8"),
   ]);
   assert.match(home, /redirect\("\/canvas"\)/);
-  assert.match(canvas, /Decision canvas/);
-  assert.match(canvas, /Current/);
-  assert.match(canvas, /Proposed/);
+  assert.match(canvas, /PROCESS CANVAS/);
+  assert.match(canvas, /Add stage/);
+  assert.match(canvas, /Add property/);
+  assert.match(canvas, /localStorage/);
   assert.match(log, /Decision log/);
   assert.match(log, /listVersions/);
   assert.match(comparison, /Performance comparison/);
@@ -22,13 +23,13 @@ test("frontend exposes separate decision canvas, log, and comparison pages", asy
   assert.match(shell, /\/comparison/);
 });
 
-test("frontend uses the FastAPI client and has no Cloudflare runtime imports", async () => {
+test("frontend canvas is independent of the backend runtime", async () => {
   const [canvas, packageJson] = await Promise.all([
     readFile(new URL("../app/canvas/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../package.json", import.meta.url), "utf8"),
   ]);
-  assert.match(canvas, /@\/lib\/api/);
-  assert.doesNotMatch(canvas, /localStorage|cloudflare:workers|vinext/);
+  assert.doesNotMatch(canvas, /@\/lib\/api|cloudflare:workers|vinext/);
+  assert.match(canvas, /localStorage/);
   assert.doesNotMatch(packageJson, /wrangler|vinext|drizzle|cloudflare/i);
 });
 
