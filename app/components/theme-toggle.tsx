@@ -1,40 +1,37 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
+
+type Theme = "dark" | "light";
+
+const themeChangeEvent = "decla-theme-change";
+
+function getThemeSnapshot(): Theme {
+  return document.documentElement.getAttribute("data-theme") === "light" ? "light" : "dark";
+}
+
+function getServerThemeSnapshot(): Theme {
+  return "dark";
+}
+
+function subscribeToTheme(onThemeChange: () => void) {
+  window.addEventListener(themeChangeEvent, onThemeChange);
+  return () => window.removeEventListener(themeChangeEvent, onThemeChange);
+}
 
 export function ThemeToggle() {
-  const [theme, setTheme] = useState<"dark" | "light">("dark");
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-    const currentTheme = document.documentElement.getAttribute("data-theme") as "dark" | "light" | null;
-    if (currentTheme) {
-      setTheme(currentTheme);
-    } else {
-      const prefersLight = window.matchMedia("(prefers-color-scheme: light)").matches;
-      setTheme(prefersLight ? "light" : "dark");
-    }
-  }, []);
+  const theme = useSyncExternalStore(subscribeToTheme, getThemeSnapshot, getServerThemeSnapshot);
 
   const toggleTheme = () => {
     const nextTheme = theme === "dark" ? "light" : "dark";
-    setTheme(nextTheme);
     document.documentElement.setAttribute("data-theme", nextTheme);
     try {
       localStorage.setItem("decla_theme", nextTheme);
     } catch (e) {
       console.error("Failed to save theme to localStorage", e);
     }
+    window.dispatchEvent(new Event(themeChangeEvent));
   };
-
-  if (!mounted) {
-    return (
-      <button className="theme-toggle-btn" aria-label="Toggle theme" disabled>
-        <span className="theme-toggle-icon" aria-hidden="true" />
-      </button>
-    );
-  }
 
   return (
     <button

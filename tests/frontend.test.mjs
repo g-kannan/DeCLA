@@ -11,7 +11,8 @@ test("frontend exposes a process canvas with local editing controls", async () =
     readFile(new URL("../app/components/app-shell.tsx", import.meta.url), "utf8"),
   ]);
   assert.match(home, /redirect\("\/canvas"\)/);
-  assert.match(canvas, /DECISION CANVAS/);
+  assert.match(shell, /"\/canvas": "Decision canvas"/);
+  assert.doesNotMatch(shell, /Business process workspace/);
   assert.match(canvas, /Add stage/);
   assert.match(canvas, /Add property/);
   assert.match(canvas, /BUDGET \/ RUN/);
@@ -40,6 +41,22 @@ test("frontend includes theme toggle and zero-FOUC script", async () => {
   assert.match(layout, /data-theme/);
   assert.match(themeToggle, /localStorage\.setItem\("decla_theme"/);
   assert.match(themeToggle, /setAttribute\("data-theme"/);
+});
+
+test("frontend uses the DeCLA blue and orange theme across both color modes", async () => {
+  const [globals, layout, canvas] = await Promise.all([
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+    readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/canvas/page.tsx", import.meta.url), "utf8"),
+  ]);
+  assert.match(globals, /--primary: #2A2ACF;/);
+  assert.match(globals, /--accent: #F36A10;/);
+  assert.match(globals, /--primary-ink:/);
+  assert.match(globals, /--accent-ink: #F36A10;/);
+  assert.match(globals, /\.brand strong \{ color: var\(--primary\)/);
+  assert.match(layout, /themeColor: "#2A2ACF"/);
+  assert.match(canvas, /color: "#2A2ACF"/);
+  assert.match(canvas, /color: "#F36A10"/);
 });
 
 test("frontend canvas is independent of the backend runtime", async () => {

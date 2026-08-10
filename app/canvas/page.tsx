@@ -539,8 +539,7 @@ export default function DecisionCanvasPage() {
       <div className="process-page">
         <header className="process-heading">
           <div>
-            <div className="eyebrow-row"><span className="process-eyebrow">DECISION CANVAS</span>{versions[0] && <span className="version-mini">v{versions[0].version}</span>}</div>
-            <div className="process-title-row"><input className="process-title-input" value={processName} onChange={(event) => setProcessName(event.target.value)} placeholder="Untitled decision canvas" aria-label="Decision canvas name" /></div>
+            <div className="process-title-row"><input className="process-title-input" value={processName} onChange={(event) => setProcessName(event.target.value)} placeholder="Untitled decision canvas" aria-label="Decision canvas name" />{versions[0] && <span className="version-mini">v{versions[0].version}</span>}</div>
             <div className="version-tag-bar"><span>VERSION TAGS <em>Optional</em></span><div>{versionTagOptions.map((tag) => <button key={tag} className={versionTags.includes(tag) ? "selected" : ""} onClick={() => toggleVersionTag(tag)}>{tag}</button>)}</div></div>
           </div>
           <div className="process-heading-actions">
