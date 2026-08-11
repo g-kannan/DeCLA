@@ -22,6 +22,72 @@ from app.models import (
 STAGE_TYPES = [
     ("source", "Business event", "source", "SRC", "#2563eb", {}),
     (
+        "human_action",
+        "Human Action",
+        "human_action",
+        "HUM",
+        "#7c3aed",
+        {
+            "type": "object",
+            "properties": {
+                "assignee": {"type": "string"},
+                "instructions": {"type": "string"},
+            },
+            "additionalProperties": True,
+        },
+    ),
+    (
+        "business_rule",
+        "Business Rule",
+        "business_rule",
+        "RUL",
+        "#0891b2",
+        {
+            "type": "object",
+            "properties": {
+                "expression": {"type": "string"},
+                "outcome": {"type": "string"},
+            },
+            "additionalProperties": True,
+        },
+    ),
+    (
+        "decision",
+        "Decision",
+        "decision",
+        "DSN",
+        "#f36a10",
+        {
+            "type": "object",
+            "properties": {
+                "criteria": {"type": "string"},
+                "confidence_threshold": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1,
+                },
+            },
+            "additionalProperties": True,
+        },
+    ),
+    (
+        "llm",
+        "LLM",
+        "llm",
+        "LLM",
+        "#db2777",
+        {
+            "type": "object",
+            "properties": {
+                "provider": {"type": "string"},
+                "model": {"type": "string"},
+                "prompt": {"type": "string"},
+                "temperature": {"type": "number", "minimum": 0, "maximum": 2},
+            },
+            "additionalProperties": True,
+        },
+    ),
+    (
         "transform",
         "Transformation",
         "transform",

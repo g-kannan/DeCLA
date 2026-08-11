@@ -86,6 +86,23 @@ test("frontend resolves stage icons from the local public icon library", async (
   assert.doesNotMatch(iconLibrary, /https?:\/\//);
 });
 
+test("frontend exposes AI workflow stage types with dedicated icons", async () => {
+  const [canvas, iconLibrary, localCanvas] = await Promise.all([
+    readFile(new URL("../app/canvas/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../lib/stage-icons.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../lib/local-canvas.ts", import.meta.url), "utf8"),
+  ]);
+  assert.match(canvas, /label: "Human Action", key: "human-action"/);
+  assert.match(canvas, /label: "Business Rule", key: "business-rule"/);
+  assert.match(canvas, /label: "LLM", key: "llm"/);
+  assert.match(canvas, /label: "Decision", key: "decision"/);
+  assert.match(iconLibrary, /human-action\.svg/);
+  assert.match(iconLibrary, /business-rule\.svg/);
+  assert.match(iconLibrary, /llm\.svg/);
+  assert.match(iconLibrary, /decision\.svg/);
+  assert.match(localCanvas, /stage\.iconKey === "analytics"/);
+});
+
 test("project property dropdowns overlay the fixed properties strip", async () => {
   const globals = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   assert.match(globals, /\.project-properties-strip \{[^}]*overflow: visible;/s);

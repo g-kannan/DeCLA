@@ -1416,7 +1416,11 @@ input:focus, select:focus, textarea:focus {
 .canvas-footer { display: flex; align-items: center; gap: 17px; min-height: 43px; padding: 0 15px; border-top: 1px solid var(--line); color: var(--muted); font-size: 10px; }
 .canvas-footer > span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
 .legend-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--primary); }
-.legend-dot.transform, .legend-dot.decision { background: var(--accent); }.legend-dot.output { background: var(--primary); }
+.legend-dot.transform, .legend-dot.decision { background: var(--accent); }
+.legend-dot.human-action { background: #7c3aed; }
+.legend-dot.business-rule { background: #0891b2; }
+.legend-dot.llm { background: #db2777; }
+.legend-dot.output { background: var(--primary); }
 .canvas-footer-note { margin-left: auto; color: var(--muted); }
 
 .inspector-panel { display: flex; flex-direction: column; gap: 0; padding: 20px 19px; overflow: visible; background: var(--surface); }

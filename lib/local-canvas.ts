@@ -1,12 +1,23 @@
 export type PropertyKind = "duration" | "cost" | "rows" | "owner" | "sla" | "custom";
 export type StageProperty = { id: string; name: string; value: string; kind?: PropertyKind; unit?: string; currency?: string };
 
+export type CanvasStageIconKey =
+  | "source"
+  | "transform"
+  | "database"
+  | "human-action"
+  | "business-rule"
+  | "llm"
+  | "decision"
+  | "terminal"
+  | "analytics";
+
 export type CanvasStage = {
   id: string;
   name: string;
   type: string;
   platform: string;
-  iconKey: "source" | "transform" | "database" | "analytics" | "terminal";
+  iconKey: CanvasStageIconKey;
   color: string;
   properties: StageProperty[];
 };
@@ -37,6 +48,14 @@ export type CanvasVersion = CanvasDraft & {
 export const CANVAS_STORAGE_KEY = "decla-process-canvas-v3";
 export const VERSIONS_STORAGE_KEY = "decla-process-versions-v1";
 
+export function normalizeCanvasStages(stages: CanvasStage[]) {
+  return stages.map((stage) =>
+    stage.iconKey === "analytics" && stage.type?.toLowerCase() === "decision"
+      ? { ...stage, iconKey: "decision" as const }
+      : stage,
+  );
+}
+
 export function readCanvasVersions() {
   if (typeof window === "undefined") return [] as CanvasVersion[];
   try {
@@ -47,6 +66,7 @@ export function readCanvasVersions() {
       environment: version.environment ?? "development",
       goLiveDate: version.goLiveDate ?? "",
       tags: Array.isArray(version.tags) ? version.tags : [],
+      stages: normalizeCanvasStages(version.stages ?? []),
     }));
   } catch {
     return [] as CanvasVersion[];

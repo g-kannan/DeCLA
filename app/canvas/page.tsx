@@ -2,20 +2,23 @@
 
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import { AppShell } from "@/app/components/app-shell";
-import { CANVAS_STORAGE_KEY, nextCanvasVersion, readCanvasVersions, writeCanvasDraft, writeCanvasVersions, type CanvasEnvironment, type CanvasStage, type CanvasStatus, type CanvasVersion, type PropertyKind, type StageProperty } from "@/lib/local-canvas";
+import { CANVAS_STORAGE_KEY, nextCanvasVersion, normalizeCanvasStages, readCanvasVersions, writeCanvasDraft, writeCanvasVersions, type CanvasEnvironment, type CanvasStage, type CanvasStageIconKey, type CanvasStatus, type CanvasVersion, type PropertyKind, type StageProperty } from "@/lib/local-canvas";
 import { StageIcon } from "@/lib/stage-icons";
 
-type StageKind = "source" | "transform" | "database" | "analytics" | "terminal";
+type StageKind = Exclude<CanvasStageIconKey, "analytics">;
 
 const stageTypes: { label: string; key: StageKind; color: string }[] = [
   { label: "Input", key: "source", color: "#2A2ACF" },
   { label: "Transform", key: "transform", color: "#F36A10" },
   { label: "Storage", key: "database", color: "#2A2ACF" },
-  { label: "Decision", key: "analytics", color: "#F36A10" },
+  { label: "Human Action", key: "human-action", color: "#7C3AED" },
+  { label: "Business Rule", key: "business-rule", color: "#0891B2" },
+  { label: "LLM", key: "llm", color: "#DB2777" },
+  { label: "Decision", key: "decision", color: "#F36A10" },
   { label: "Automation", key: "terminal", color: "#2A2ACF" },
 ];
 
-const platforms = ["Salesforce", "HubSpot", "Snowflake", "Databricks", "dbt", "AWS", "Other"];
+const platforms = ["OpenAI", "Anthropic", "Google Gemini", "Azure OpenAI", "AWS Bedrock", "Salesforce", "HubSpot", "Snowflake", "Databricks", "dbt", "AWS", "Other"];
 const durationUnits = ["mins", "hours", "days"];
 const currencies = ["USD", "EUR", "GBP", "INR"];
 const propertyPresets: { label: string; kind: PropertyKind; unit?: string; currency?: string }[] = [
@@ -52,7 +55,7 @@ const seedStages: CanvasStage[] = [
     name: "Qualify lead",
     type: "Decision",
     platform: "HubSpot",
-    iconKey: "analytics",
+    iconKey: "decision",
     color: "#F36A10",
     properties: [{ id: "p3", name: "Duration", value: "4", kind: "duration", unit: "hours" }, { id: "p4", name: "SLA", value: "1", kind: "sla", unit: "days" }],
   },
@@ -202,8 +205,9 @@ export default function DecisionCanvasPage() {
           if (draft.sla !== undefined) setProjectSla(draft.sla);
           if (draft.slaUnit) setProjectSlaUnit(draft.slaUnit);
           if (draft.stages?.length) {
-            setStages(draft.stages);
-            setSelectedId(draft.stages[0].id);
+            const normalizedStages = normalizeCanvasStages(draft.stages);
+            setStages(normalizedStages);
+            setSelectedId(normalizedStages[0].id);
           }
         } catch {
           // A stale local draft should never prevent the canvas from opening.
@@ -345,12 +349,13 @@ export default function DecisionCanvasPage() {
       setBudgetCurrency(draft.budgetCurrency ?? "USD");
       setProjectSla(draft.sla ?? "");
       setProjectSlaUnit(draft.slaUnit ?? "days");
-      setStages(draft.stages);
-      setSelectedId(draft.stages[0]?.id ?? null);
-      const importedVersions = Array.isArray(payload.versions) ? payload.versions.map((version) => ({ ...version, environment: version.environment ?? "development" as const, goLiveDate: version.goLiveDate ?? "", tags: Array.isArray(version.tags) ? version.tags : [] })) : [];
+      const normalizedStages = normalizeCanvasStages(draft.stages);
+      setStages(normalizedStages);
+      setSelectedId(normalizedStages[0]?.id ?? null);
+      const importedVersions = Array.isArray(payload.versions) ? payload.versions.map((version) => ({ ...version, environment: version.environment ?? "development" as const, goLiveDate: version.goLiveDate ?? "", tags: Array.isArray(version.tags) ? version.tags : [], stages: normalizeCanvasStages(version.stages ?? []) })) : [];
       setVersions(importedVersions);
       setVersionTags(importedVersions[0]?.tags ?? []);
-      writeCanvasDraft({ name: draft.name ?? "", status: importedStatus, environment: draft.environment ?? "development", goLiveDate: draft.goLiveDate ?? "", budget: draft.budget ?? "", budgetCurrency: draft.budgetCurrency ?? "USD", sla: draft.sla ?? "", slaUnit: draft.slaUnit ?? "days", stages: draft.stages });
+      writeCanvasDraft({ name: draft.name ?? "", status: importedStatus, environment: draft.environment ?? "development", goLiveDate: draft.goLiveDate ?? "", budget: draft.budget ?? "", budgetCurrency: draft.budgetCurrency ?? "USD", sla: draft.sla ?? "", slaUnit: draft.slaUnit ?? "days", stages: normalizedStages });
       writeCanvasVersions(importedVersions);
       setMessage(".decla file imported");
     } catch {
@@ -603,7 +608,7 @@ export default function DecisionCanvasPage() {
                 <div className="add-stage-wrap">
                   <button className="add-stage-button" onClick={() => setShowAddMenu((open) => !open)}>＋ Add stage</button>
                   {showAddMenu && <div className="floating-menu stage-menu">
-                    <small>ADD A BUSINESS STAGE</small>
+                    <small>ADD A WORKFLOW STAGE</small>
                     {stageTypes.map((kind) => <button key={kind.key} onClick={() => addStage(kind)}><span className="menu-color" style={{ background: kind.color }} />{kind.label}<span>+</span></button>)}
                     </div>}
                   </div>
@@ -642,7 +647,7 @@ export default function DecisionCanvasPage() {
             </div>
 
             <div className="canvas-footer">
-              <span><i className="legend-dot source" /> Input</span><span><i className="legend-dot transform" /> Transform</span><span><i className="legend-dot decision" /> Decision</span><span><i className="legend-dot output" /> Automation</span>
+              <span><i className="legend-dot source" /> Input</span><span><i className="legend-dot transform" /> Transform</span><span><i className="legend-dot human-action" /> Human Action</span><span><i className="legend-dot business-rule" /> Business Rule</span><span><i className="legend-dot llm" /> LLM</span><span><i className="legend-dot decision" /> Decision</span><span><i className="legend-dot output" /> Automation</span>
               <span className="canvas-footer-note">Changes are saved in this browser</span>
             </div>
           </section>
