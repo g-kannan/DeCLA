@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties } from "react";
 import { AppShell } from "@/app/components/app-shell";
-import { CANVAS_STORAGE_KEY, nextCanvasVersion, normalizeCanvasEdges, normalizeCanvasStages, readCanvasVersions, writeCanvasDraft, writeCanvasVersions, type CanvasEdge, type CanvasEnvironment, type CanvasStage, type CanvasStageIconKey, type CanvasStatus, type CanvasVersion, type PropertyKind, type StageProperty } from "@/lib/local-canvas";
+import { CANVAS_STORAGE_KEY, nextCanvasVersion, normalizeCanvasEdges, normalizeCanvasStages, readCanvasVersions, writeCanvasDraft, writeCanvasVersions, type CanvasEdge, type CanvasEdgeLineStyle, type CanvasEnvironment, type CanvasStage, type CanvasStageIconKey, type CanvasStatus, type CanvasVersion, type PropertyKind, type StageProperty } from "@/lib/local-canvas";
 import { StageIcon } from "@/lib/stage-icons";
 import { FlowCanvas, getAutoLayout } from "./flow-canvas";
 
@@ -665,6 +665,7 @@ export default function DecisionCanvasPage() {
   const [projectSlaUnit, setProjectSlaUnit] = useState("days");
   const [stages, setStages] = useState<CanvasStage[]>([]);
   const [edges, setEdges] = useState<CanvasEdge[]>([]);
+  const [edgeLineStyle, setEdgeLineStyle] = useState<CanvasEdgeLineStyle>("smoothstep");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [showAddMenu, setShowAddMenu] = useState(false);
@@ -675,6 +676,7 @@ export default function DecisionCanvasPage() {
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showExamplesMenu, setShowExamplesMenu] = useState(false);
   const [showArrangeMenu, setShowArrangeMenu] = useState(false);
+  const [showLineStyleMenu, setShowLineStyleMenu] = useState(false);
   const [versionTags, setVersionTags] = useState<string[]>([]);
   const importInputRef = useRef<HTMLInputElement>(null);
 
@@ -686,7 +688,7 @@ export default function DecisionCanvasPage() {
       setVersionTags(localVersions[0]?.tags ?? []);
       if (saved) {
         try {
-          const draft = JSON.parse(saved) as { name?: string; status?: CanvasStatus; environment?: CanvasEnvironment; goLiveDate?: string; budget?: string; budgetCurrency?: string; sla?: string; slaUnit?: string; stages?: CanvasStage[]; edges?: CanvasEdge[] };
+          const draft = JSON.parse(saved) as { name?: string; status?: CanvasStatus; environment?: CanvasEnvironment; goLiveDate?: string; budget?: string; budgetCurrency?: string; sla?: string; slaUnit?: string; stages?: CanvasStage[]; edges?: CanvasEdge[]; edgeLineStyle?: CanvasEdgeLineStyle };
           if (draft.name) setProcessName(draft.name);
           if (draft.status && statusOptions.some((option) => option.value === draft.status)) setProjectStatus(draft.status);
           if (draft.environment && environmentOptions.some((option) => option.value === draft.environment)) setEnvironment(draft.environment);
@@ -695,6 +697,7 @@ export default function DecisionCanvasPage() {
           if (draft.budgetCurrency) setBudgetCurrency(draft.budgetCurrency);
           if (draft.sla !== undefined) setProjectSla(draft.sla);
           if (draft.slaUnit) setProjectSlaUnit(draft.slaUnit);
+          if (draft.edgeLineStyle) setEdgeLineStyle(draft.edgeLineStyle);
           if (draft.stages?.length) {
             const normalizedStages = normalizeCanvasStages(draft.stages);
             setStages(normalizedStages);
@@ -712,8 +715,8 @@ export default function DecisionCanvasPage() {
 
   useEffect(() => {
     if (!hydrated) return;
-    writeCanvasDraft({ name: processName, status: projectStatus, environment, goLiveDate, budget: projectBudget, budgetCurrency, sla: projectSla, slaUnit: projectSlaUnit, stages, edges });
-  }, [budgetCurrency, edges, environment, goLiveDate, hydrated, processName, projectBudget, projectSla, projectSlaUnit, projectStatus, stages]);
+    writeCanvasDraft({ name: processName, status: projectStatus, environment, goLiveDate, budget: projectBudget, budgetCurrency, sla: projectSla, slaUnit: projectSlaUnit, stages, edges, edgeLineStyle });
+  }, [budgetCurrency, edges, edgeLineStyle, environment, goLiveDate, hydrated, processName, projectBudget, projectSla, projectSlaUnit, projectStatus, stages]);
 
   const selectedStage = stages.find((stage) => stage.id === selectedId) ?? null;
   const selectedEdge = edges.find((edge) => edge.id === selectedEdgeId) ?? null;
@@ -735,6 +738,17 @@ export default function DecisionCanvasPage() {
   }
 
   function addStage(kind: (typeof stageTypes)[number]) {
+    let x = 100;
+    let y = 100;
+    if (stages.length > 0) {
+      const refStage = selectedStage ?? stages.reduce((max, s) => ((s.x ?? 0) > (max.x ?? 0) ? s : max), stages[0]);
+      const refX = refStage.x ?? 0;
+      const refY = refStage.y ?? 0;
+      const refWidth = refStage.iconKey === "decision" ? 210 : 188;
+      x = refX + refWidth + 70;
+      y = refY;
+    }
+
     const next: CanvasStage = {
       id: createId("stage"),
       name: `New ${kind.label.toLowerCase()}`,
@@ -743,6 +757,8 @@ export default function DecisionCanvasPage() {
       iconKey: kind.key,
       color: kind.color,
       properties: [],
+      x,
+      y,
     };
     setStages((current) => [...current, next]);
     setSelectedId(next.id);
@@ -815,7 +831,7 @@ export default function DecisionCanvasPage() {
   }
 
   function recordVersion(summary: string) {
-    const draft = { name: processName.trim(), status: projectStatus, environment, goLiveDate, budget: projectBudget, budgetCurrency, sla: projectSla, slaUnit: projectSlaUnit, stages, edges };
+    const draft = { name: processName.trim(), status: projectStatus, environment, goLiveDate, budget: projectBudget, budgetCurrency, sla: projectSla, slaUnit: projectSlaUnit, stages, edges, edgeLineStyle };
     const next = nextCanvasVersion(versions, draft, summary, versionTags);
     const updated = [next, ...versions];
     writeCanvasDraft(draft);
@@ -854,7 +870,7 @@ export default function DecisionCanvasPage() {
       return;
     }
     try {
-      const payload = JSON.parse(await file.text()) as { format?: string; canvas?: { name?: string; status?: CanvasStatus; environment?: CanvasEnvironment; goLiveDate?: string; budget?: string; budgetCurrency?: string; sla?: string; slaUnit?: string; stages?: CanvasStage[]; edges?: CanvasEdge[] }; versions?: CanvasVersion[] };
+      const payload = JSON.parse(await file.text()) as { format?: string; canvas?: { name?: string; status?: CanvasStatus; environment?: CanvasEnvironment; goLiveDate?: string; budget?: string; budgetCurrency?: string; sla?: string; slaUnit?: string; stages?: CanvasStage[]; edges?: CanvasEdge[]; edgeLineStyle?: CanvasEdgeLineStyle }; versions?: CanvasVersion[] };
       const draft = payload.canvas;
       if (payload.format !== "decla" || !draft || !Array.isArray(draft.stages)) throw new Error("Invalid .decla file");
       const importedStatus = draft.status && statusOptions.some((option) => option.value === draft.status) ? draft.status : "draft";
@@ -866,6 +882,7 @@ export default function DecisionCanvasPage() {
       setBudgetCurrency(draft.budgetCurrency ?? "USD");
       setProjectSla(draft.sla ?? "");
       setProjectSlaUnit(draft.slaUnit ?? "days");
+      if (draft.edgeLineStyle) setEdgeLineStyle(draft.edgeLineStyle);
       const normalizedStages = normalizeCanvasStages(draft.stages);
       const normalizedEdges = normalizeCanvasEdges(normalizedStages, draft.edges);
       setStages(normalizedStages);
@@ -1067,6 +1084,7 @@ export default function DecisionCanvasPage() {
       setProjectSlaUnit("days");
       setVersionTags([]);
       setVersions([]);
+      setEdgeLineStyle("smoothstep");
       writeCanvasVersions([]);
       window.localStorage.removeItem(CANVAS_STORAGE_KEY);
       setShowAddMenu(false);
@@ -1159,6 +1177,18 @@ export default function DecisionCanvasPage() {
                     </div>
                   )}
                 </div>
+                <div className="export-menu-wrap">
+                  <button className="secondary-button" onClick={() => setShowLineStyleMenu((open) => !open)}>⚡ Line style <span className="button-caret">⌄</span></button>
+                  {showLineStyleMenu && (
+                    <div className="floating-menu export-menu">
+                      <small>EDGE ROUTING STYLE</small>
+                      <button onClick={() => { setEdgeLineStyle("smoothstep"); setShowLineStyleMenu(false); setMessage("Line style set to L-shaped (Smooth)"); }}>╰─╯ L-shaped (Smooth)</button>
+                      <button onClick={() => { setEdgeLineStyle("step"); setShowLineStyleMenu(false); setMessage("Line style set to L-shaped (Step)"); }}>└─┐ L-shaped (Step)</button>
+                      <button onClick={() => { setEdgeLineStyle("straight"); setShowLineStyleMenu(false); setMessage("Line style set to Straight (Free flow)"); }}>─── Straight (Free flow)</button>
+                      <button onClick={() => { setEdgeLineStyle("bezier"); setShowLineStyleMenu(false); setMessage("Line style set to Curved (Bezier)"); }}>∿ Curved (Bezier)</button>
+                    </div>
+                  )}
+                </div>
               </div>
               <div className="canvas-toolbar-group canvas-tools-right">
                 <span className="canvas-stat"><strong>{stages.length}</strong> stages</span>
@@ -1187,6 +1217,7 @@ export default function DecisionCanvasPage() {
                   edges={edges}
                   selectedStageId={selectedId}
                   selectedEdgeId={selectedEdgeId}
+                  edgeLineStyle={edgeLineStyle}
                   onSelectStage={(id) => { setSelectedId(id); setSelectedEdgeId(null); }}
                   onSelectEdge={(id) => { setSelectedEdgeId(id); setSelectedId(null); }}
                   onStagePositionsChange={handleStagePositionsChange}
@@ -1239,6 +1270,20 @@ export default function DecisionCanvasPage() {
                   <label>
                     <span>Label <em style={{ fontStyle: "normal", color: "var(--muted)", fontWeight: 400 }}>Optional</em></span>
                     <input value={selectedEdge.label ?? ""} onChange={(e) => updateEdge(selectedEdge.id, { label: e.target.value })} placeholder="e.g. Yes, No, Approved…" aria-label="Edge label" />
+                  </label>
+                  <label>
+                    <span>Line style</span>
+                    <SearchableSelect
+                      value={selectedEdge.lineType ?? edgeLineStyle}
+                      options={[
+                        { value: "smoothstep", label: "L-shaped (Smooth)" },
+                        { value: "step", label: "L-shaped (Step)" },
+                        { value: "straight", label: "Straight (Free flow)" },
+                        { value: "bezier", label: "Curved (Bezier)" },
+                      ]}
+                      onChange={(value) => updateEdge(selectedEdge.id, { lineType: value as CanvasEdgeLineStyle })}
+                      ariaLabel="Edge line style"
+                    />
                   </label>
                   <label>
                     <span>Path colour</span>

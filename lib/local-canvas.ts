@@ -27,6 +27,8 @@ export type CanvasStage = {
   y?: number;
 };
 
+export type CanvasEdgeLineStyle = "smoothstep" | "step" | "straight" | "bezier";
+
 /**
  * A directed connection between two stages.
  * Phase 1: labeled edges between any two stages.
@@ -44,6 +46,8 @@ export type CanvasEdge = {
   color?: string;
   /** Optional machine-readable condition expression */
   condition?: string;
+  /** Edge line routing style */
+  lineType?: CanvasEdgeLineStyle;
 };
 
 export type CanvasDraft = {
@@ -58,6 +62,8 @@ export type CanvasDraft = {
   stages: CanvasStage[];
   /** Directed edges between stages. Empty for legacy canvases — defaults to linear chain. */
   edges: CanvasEdge[];
+  /** Workspace default edge line routing style (defaults to "smoothstep" L-shaped grid routing) */
+  edgeLineStyle?: CanvasEdgeLineStyle;
 };
 
 export type CanvasStatus = "draft" | "under-review" | "approved" | "archived";

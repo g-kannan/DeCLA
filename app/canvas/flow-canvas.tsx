@@ -15,8 +15,11 @@ import {
   addEdge,
   Background,
   BackgroundVariant,
+  ConnectionLineType,
   Controls,
   EdgeLabelRenderer,
+  getBezierPath,
+  getSmoothStepPath,
   getStraightPath,
   Handle,
   MarkerType,
@@ -39,7 +42,7 @@ import {
 } from "@xyflow/react";
 import dagre from "dagre";
 import { StageIcon } from "@/lib/stage-icons";
-import type { CanvasEdge, CanvasStage } from "@/lib/local-canvas";
+import type { CanvasEdge, CanvasEdgeLineStyle, CanvasStage } from "@/lib/local-canvas";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -92,6 +95,8 @@ export type FlowCanvasProps = {
   edges: CanvasEdge[];
   selectedStageId: string | null;
   selectedEdgeId: string | null;
+  /** Global default edge line routing style (defaults to "smoothstep" L-shaped grid routing) */
+  edgeLineStyle?: CanvasEdgeLineStyle;
   /** User clicked a stage node */
   onSelectStage: (id: string | null) => void;
   /** User clicked an edge */
@@ -135,7 +140,8 @@ function StageNode({ data }: NodeProps) {
             className="flow-node-decision"
             style={{ "--node-accent": stage.color } as CSSProperties}
             data-selected={selected}
-          >
+          />
+          <div className="flow-node-decision-content">
             <span className="flow-node-badge">{String(index + 1).padStart(2, "0")}</span>
             <span className="flow-node-icon-wrap">
               <StageIcon
@@ -200,16 +206,61 @@ function LabeledEdge({
   sourceY,
   targetX,
   targetY,
+  sourcePosition,
+  targetPosition,
   data,
   selected,
   markerEnd,
   style,
 }: EdgeProps) {
-  const edgeData = data as { label?: string; color?: string } | undefined;
+  const edgeData = data as { label?: string; color?: string; lineType?: CanvasEdgeLineStyle } | undefined;
   const label = edgeData?.label;
   const color = edgeData?.color ?? "var(--edge-default)";
+  const lineType = edgeData?.lineType ?? "smoothstep";
 
-  const [edgePath, labelX, labelY] = getStraightPath({ sourceX, sourceY, targetX, targetY });
+  let edgePath = "";
+  let labelX = 0;
+  let labelY = 0;
+
+  if (lineType === "step") {
+    // Sharp L-shaped / step path (90-degree right angles with 0 radius)
+    [edgePath, labelX, labelY] = getSmoothStepPath({
+      sourceX,
+      sourceY,
+      sourcePosition,
+      targetX,
+      targetY,
+      targetPosition,
+      borderRadius: 0,
+    });
+  } else if (lineType === "straight") {
+    [edgePath, labelX, labelY] = getStraightPath({
+      sourceX,
+      sourceY,
+      targetX,
+      targetY,
+    });
+  } else if (lineType === "bezier") {
+    [edgePath, labelX, labelY] = getBezierPath({
+      sourceX,
+      sourceY,
+      sourcePosition,
+      targetX,
+      targetY,
+      targetPosition,
+    });
+  } else {
+    // Default: "smoothstep" (L-shaped orthogonal grid routing with 12px rounded turns)
+    [edgePath, labelX, labelY] = getSmoothStepPath({
+      sourceX,
+      sourceY,
+      sourcePosition,
+      targetX,
+      targetY,
+      targetPosition,
+      borderRadius: 12,
+    });
+  }
 
   return (
     <>
@@ -274,26 +325,40 @@ function stagesToRfNodes(
   }));
 }
 
-function canvasEdgesToRfEdges(edges: CanvasEdge[], selectedEdgeId: string | null): Edge[] {
-  return edges.map((edge) => ({
-    id: edge.id,
-    source: edge.fromStageId,
-    target: edge.toStageId,
-    // For legacy/default edges, let React Flow select the first compatible
-    // handle. Guessing an id can produce error 008 while nodes are remeasured.
-    sourceHandle: edge.fromHandle,
-    targetHandle: edge.toHandle,
-    type: "labeledEdge",
-    selected: edge.id === selectedEdgeId,
-    data: { label: edge.label, color: edge.color },
-    markerEnd: {
-      type: MarkerType.ArrowClosed,
-      width: 14,
-      height: 14,
-      color: edge.color ?? "var(--edge-default)",
-    },
-  }));
+function canvasEdgesToRfEdges(
+  edges: CanvasEdge[],
+  selectedEdgeId: string | null,
+  globalLineStyle: CanvasEdgeLineStyle = "smoothstep",
+): Edge[] {
+  return edges.map((edge) => {
+    const lineType = edge.lineType ?? globalLineStyle;
+    return {
+      id: edge.id,
+      source: edge.fromStageId,
+      target: edge.toStageId,
+      sourceHandle: edge.fromHandle,
+      targetHandle: edge.toHandle,
+      type: "labeledEdge",
+      selected: edge.id === selectedEdgeId,
+      data: { label: edge.label, color: edge.color, lineType },
+      markerEnd: {
+        type: MarkerType.ArrowClosed,
+        width: 14,
+        height: 14,
+        color: edge.color ?? "var(--edge-default)",
+      },
+    };
+  });
 }
+
+// ─── Connection Line Map ──────────────────────────────────────────────────────
+
+const connectionLineTypeMap: Record<CanvasEdgeLineStyle, ConnectionLineType> = {
+  smoothstep: ConnectionLineType.SmoothStep,
+  step: ConnectionLineType.Step,
+  straight: ConnectionLineType.Straight,
+  bezier: ConnectionLineType.Bezier,
+};
 
 // ─── Inner flow (needs useReactFlow) ─────────────────────────────────────────
 
@@ -305,6 +370,7 @@ function FlowCanvasInner({
   edges: canvasEdges,
   selectedStageId,
   selectedEdgeId,
+  edgeLineStyle = "smoothstep",
   onSelectStage,
   onSelectEdge,
   onStagePositionsChange,
@@ -330,7 +396,7 @@ function FlowCanvasInner({
     stagesToRfNodes(stages, initialPositions, selectedStageId),
   );
   const [rfEdges, setRfEdges, onRfEdgesChange] = useEdgesState(
-    canvasEdgesToRfEdges(canvasEdges, selectedEdgeId),
+    canvasEdgesToRfEdges(canvasEdges, selectedEdgeId, edgeLineStyle),
   );
 
   // ── Sync external changes → React Flow state ──────────────────────────────
@@ -371,11 +437,26 @@ function FlowCanvasInner({
         }
       }
 
-      // Detect if any new stage appeared without a position → auto-layout
+      // Detect if any new stage appeared without a position
       const anyNew = stages.some((s) => !currentPositions.has(s.id) && s.x === undefined);
       let positions = currentPositions;
       if (anyNew) {
-        positions = getAutoLayout(stages, canvasEdges);
+        if (currentPositions.size === 0) {
+          positions = getAutoLayout(stages, canvasEdges);
+        } else {
+          const newPositions = new Map(currentPositions);
+          stages.forEach((s, idx) => {
+            if (!newPositions.has(s.id)) {
+              const prevStage = idx > 0 ? stages[idx - 1] : undefined;
+              const prevPos = prevStage ? newPositions.get(prevStage.id) : undefined;
+              const prevWidth = prevStage?.iconKey === "decision" ? DECISION_NODE_SIZE : NODE_WIDTH;
+              const x = s.x ?? (prevPos ? prevPos.x + prevWidth + 70 : idx * (NODE_WIDTH + 80));
+              const y = s.y ?? (prevPos ? prevPos.y : 0);
+              newPositions.set(s.id, { x, y });
+            }
+          });
+          positions = newPositions;
+        }
         shouldFitView = true;
       }
       setRfNodes(stagesToRfNodes(stages, positions, selectedStageId));
@@ -394,14 +475,12 @@ function FlowCanvasInner({
 
     if (edgesChanged) {
       lastEdgesRef.current = canvasEdges;
-      setRfEdges(canvasEdgesToRfEdges(canvasEdges, selectedEdgeId));
+      setRfEdges(canvasEdgesToRfEdges(canvasEdges, selectedEdgeId, edgeLineStyle));
     } else {
-      setRfEdges((prev) =>
-        prev.map((e) => ({ ...e, selected: e.id === selectedEdgeId })),
-      );
+      setRfEdges(canvasEdgesToRfEdges(canvasEdges, selectedEdgeId, edgeLineStyle));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stages, canvasEdges, selectedStageId, selectedEdgeId]);
+  }, [stages, canvasEdges, selectedStageId, selectedEdgeId, edgeLineStyle]);
 
   // ── Node drag end — persist positions ─────────────────────────────────────
   const handleNodesChange: OnNodesChange = useCallback(
@@ -456,13 +535,14 @@ function FlowCanvasInner({
             ...connection,
             id: newEdge.id,
             type: "labeledEdge",
+            data: { lineType: edgeLineStyle },
             markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14, color: "var(--edge-default)" },
           },
           prev,
         ),
       );
     },
-    [canvasEdges, onEdgeCreated, setRfEdges],
+    [canvasEdges, edgeLineStyle, onEdgeCreated, setRfEdges],
   );
 
   // ── Fit view on first mount ───────────────────────────────────────────────
@@ -482,6 +562,7 @@ function FlowCanvasInner({
       edges={rfEdges}
       nodeTypes={nodeTypes}
       edgeTypes={edgeTypes}
+      connectionLineType={connectionLineTypeMap[edgeLineStyle]}
       onNodesChange={handleNodesChange}
       onEdgesChange={handleEdgesChange}
       onConnect={handleConnect}

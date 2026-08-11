@@ -1787,63 +1787,73 @@ input:focus, select:focus, textarea:focus {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--node-accent) 28%, transparent), var(--shadow-md);
 }
 
-/* Inner diamond: 148×148 rotated square */
+/* Inner diamond: 148×148 rotated square background centered in 210×210 wrapper */
 .flow-node-decision {
-  position: relative;
-  display: grid;
+  position: absolute;
+  top: 50%;
+  left: 50%;
   width: 148px;
   height: 148px;
-  place-items: center;
-  justify-items: center;
   border: 2px solid var(--node-accent);
   border-radius: 8px;
   color: var(--ink);
   background: color-mix(in srgb, var(--node-accent) 7%, var(--surface));
   box-shadow: var(--shadow-sm);
   cursor: pointer;
-  text-align: center;
-  transform: rotate(45deg);
+  transform: translate(-50%, -50%) rotate(45deg);
   transform-origin: center;
   transition: box-shadow var(--transition-fast);
   user-select: none;
 }
 .flow-node-decision:hover { box-shadow: var(--shadow-md); }
-/* Counter-rotate all text/icon children */
-.flow-node-decision .flow-node-badge,
-.flow-node-decision .flow-node-icon-wrap,
-.flow-node-decision .flow-node-label,
-.flow-node-decision .flow-node-props {
-  transform: rotate(-45deg);
-}
-.flow-node-badge {
+
+/* Un-rotated content layer centered over the diamond */
+.flow-node-decision-content {
   position: absolute;
-  top: 12px;
-  left: 14px;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 2;
+  text-align: center;
+}
+
+.flow-node-decision-content .flow-node-badge {
+  position: absolute;
+  top: 24px;
   color: var(--muted);
-  font-size: 8px;
+  font-size: 9px;
   font-weight: 800;
 }
-.flow-node-icon-wrap {
+
+.flow-node-decision-content .flow-node-icon-wrap {
   display: grid;
   width: 34px;
   height: 34px;
   place-items: center;
-  margin-bottom: 6px;
+  margin-top: 10px;
+  margin-bottom: 4px;
   border-radius: 8px;
   background: color-mix(in srgb, var(--node-accent) 12%, var(--surface));
 }
-.flow-node-icon-wrap .stage-icon { width: 28px; height: 28px; border: 0; background: transparent; }
-.flow-node-icon-wrap .stage-icon img { width: 22px; height: 22px; }
-.flow-node-label {
-  max-width: 100px;
+
+.flow-node-decision-content .flow-node-icon-wrap .stage-icon { width: 28px; height: 28px; border: 0; background: transparent; }
+.flow-node-decision-content .flow-node-icon-wrap .stage-icon img { width: 22px; height: 22px; }
+
+.flow-node-decision-content .flow-node-label {
+  max-width: 104px;
   overflow: hidden;
   font-size: 11px;
   font-weight: 700;
+  color: var(--ink);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.flow-node-props {
-  margin-top: 4px;
+
+.flow-node-decision-content .flow-node-props {
+  margin-top: 2px;
   padding: 2px 5px;
   border-radius: 3px;
   color: var(--muted);
