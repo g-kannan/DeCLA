@@ -114,31 +114,38 @@ function StageNode({ data }: NodeProps) {
   if (isDecision) {
     return (
       <>
-        {/* Target handle (left) */}
+        {/* Target handle — left tip of the diamond */}
         <Handle type="target" position={Position.Left} id="target" className="rf-handle" />
 
-        {/* Diamond wrapper */}
+        {/* Wrapper sized to the diamond's visual bounding box so RF positions handles correctly */}
         <div
-          className="flow-node-decision"
-          style={{ "--node-accent": stage.color } as CSSProperties}
+          className="flow-node-decision-wrap"
           data-selected={selected}
+          style={{ "--node-accent": stage.color } as CSSProperties}
         >
-          <span className="flow-node-badge">{String(index + 1).padStart(2, "0")}</span>
-          <span className="flow-node-icon-wrap">
-            <StageIcon
-              stage={{ label: stage.name, platform: stage.platform, stage_type_key: stage.iconKey, category: stage.type }}
-              decorative={false}
-            />
-          </span>
-          <strong className="flow-node-label">{stage.name || "Untitled"}</strong>
-          {stage.properties.length > 0 && (
-            <span className="flow-node-props">{stage.properties.length} {stage.properties.length === 1 ? "prop" : "props"}</span>
-          )}
+          <div
+            className="flow-node-decision"
+            style={{ "--node-accent": stage.color } as CSSProperties}
+            data-selected={selected}
+          >
+            <span className="flow-node-badge">{String(index + 1).padStart(2, "0")}</span>
+            <span className="flow-node-icon-wrap">
+              <StageIcon
+                stage={{ label: stage.name, platform: stage.platform, stage_type_key: stage.iconKey, category: stage.type }}
+                decorative={false}
+              />
+            </span>
+            <strong className="flow-node-label">{stage.name || "Untitled"}</strong>
+            {stage.properties.length > 0 && (
+              <span className="flow-node-props">{stage.properties.length} {stage.properties.length === 1 ? "prop" : "props"}</span>
+            )}
+          </div>
         </div>
 
-        {/* Source handles — right (primary) and bottom (branch) */}
-        <Handle type="source" position={Position.Right} id="right" className="rf-handle rf-handle--right" />
-        <Handle type="source" position={Position.Bottom} id="bottom" className="rf-handle rf-handle--bottom" />
+        {/* Source handle — right tip */}
+        <Handle type="source" position={Position.Right} id="right" className="rf-handle" />
+        {/* Source handle — bottom tip (branching path) */}
+        <Handle type="source" position={Position.Bottom} id="bottom" className="rf-handle" />
       </>
     );
   }
@@ -253,8 +260,9 @@ function stagesToRfNodes(
       total: stages.length,
       isDecision: stage.iconKey === "decision",
     } satisfies StageNodeData,
-    width: NODE_WIDTH,
-    height: stage.iconKey === "decision" ? 160 : NODE_HEIGHT,
+    // Decision nodes use a 210×210 wrapper so handles land at the diamond tips
+    width: stage.iconKey === "decision" ? 210 : NODE_WIDTH,
+    height: stage.iconKey === "decision" ? 210 : NODE_HEIGHT,
   }));
 }
 
@@ -487,13 +495,6 @@ function FlowCanvasInner({
         }}
         maskColor="rgba(0,0,0,0.06)"
       />
-
-      {/* "Add stage" shortcut visible in top-right */}
-      <div className="rf-add-node-btn-wrap">
-        <button className="rf-add-node-btn" onClick={onAddStageRequest}>
-          ＋ Add stage
-        </button>
-      </div>
     </ReactFlow>
   );
 }
