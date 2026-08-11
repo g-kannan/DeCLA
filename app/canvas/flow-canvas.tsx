@@ -56,10 +56,12 @@ export function getAutoLayout(
   stages: Pick<CanvasStage, "id" | "iconKey">[],
   edges: Pick<CanvasEdge, "id" | "fromStageId" | "toStageId">[],
   rankdir: "TB" | "LR" = "TB",
+  nodesep: number = 85,
+  ranksep: number = 100,
 ): Map<string, XYPosition> {
   const g = new dagre.graphlib.Graph({ multigraph: true });
   g.setDefaultEdgeLabel(() => ({}));
-  g.setGraph({ rankdir, ranksep: 80, nodesep: 45 });
+  g.setGraph({ rankdir, ranksep, nodesep });
 
   stages.forEach((stage) => {
     const isDecision = stage.iconKey === "decision";
@@ -97,6 +99,12 @@ export type FlowCanvasProps = {
   selectedEdgeId: string | null;
   /** Global default edge line routing style (defaults to "smoothstep" L-shaped grid routing) */
   edgeLineStyle?: CanvasEdgeLineStyle;
+  /** Hide icons across canvas nodes */
+  hideIcons?: boolean;
+  /** Hide property pills across canvas nodes */
+  hideProperties?: boolean;
+  /** Render compact node sizing */
+  compactMode?: boolean;
   /** User clicked a stage node */
   onSelectStage: (id: string | null) => void;
   /** User clicked an edge */
@@ -119,10 +127,13 @@ type StageNodeData = {
   index: number;
   total: number;
   isDecision: boolean;
+  hideIcons?: boolean;
+  hideProperties?: boolean;
+  compactMode?: boolean;
 };
 
 function StageNode({ data }: NodeProps) {
-  const { stage, selected, index, isDecision } = data as StageNodeData;
+  const { stage, selected, index, isDecision, hideIcons, hideProperties, compactMode } = data as StageNodeData;
 
   if (isDecision) {
     return (
@@ -132,7 +143,7 @@ function StageNode({ data }: NodeProps) {
 
         {/* Wrapper sized to the diamond's visual bounding box so RF positions handles correctly */}
         <div
-          className="flow-node-decision-wrap"
+          className={`flow-node-decision-wrap${compactMode ? " compact-node" : ""}`}
           data-selected={selected}
           style={{ "--node-accent": stage.color } as CSSProperties}
         >
@@ -143,14 +154,16 @@ function StageNode({ data }: NodeProps) {
           />
           <div className="flow-node-decision-content">
             <span className="flow-node-badge">{String(index + 1).padStart(2, "0")}</span>
-            <span className="flow-node-icon-wrap">
-              <StageIcon
-                stage={{ label: stage.name, platform: stage.platform, stage_type_key: stage.iconKey, category: stage.type }}
-                decorative={false}
-              />
-            </span>
+            {!hideIcons && (
+              <span className="flow-node-icon-wrap">
+                <StageIcon
+                  stage={{ label: stage.name, platform: stage.platform, stage_type_key: stage.iconKey, category: stage.type }}
+                  decorative={false}
+                />
+              </span>
+            )}
             <strong className="flow-node-label">{stage.name || "Untitled"}</strong>
-            {stage.properties.length > 0 && (
+            {!hideProperties && stage.properties.length > 0 && (
               <span className="flow-node-props">{stage.properties.length} {stage.properties.length === 1 ? "prop" : "props"}</span>
             )}
           </div>
@@ -169,7 +182,7 @@ function StageNode({ data }: NodeProps) {
       <Handle type="target" position={Position.Left} id="target" className="rf-handle" />
 
       <div
-        className="flow-node-rf"
+        className={`flow-node-rf${compactMode ? " compact-node" : ""}`}
         style={{ "--node-accent": stage.color } as CSSProperties}
         data-selected={selected}
       >
@@ -177,18 +190,20 @@ function StageNode({ data }: NodeProps) {
           <small>{String(index + 1).padStart(2, "0")}</small>
           <span className="node-more">•••</span>
         </span>
-        <span className="flow-node-icon-rf">
-          <StageIcon
-            stage={{ label: stage.name, platform: stage.platform, stage_type_key: stage.iconKey, category: stage.type }}
-            decorative={false}
-          />
-        </span>
+        {!hideIcons && (
+          <span className="flow-node-icon-rf">
+            <StageIcon
+              stage={{ label: stage.name, platform: stage.platform, stage_type_key: stage.iconKey, category: stage.type }}
+              decorative={false}
+            />
+          </span>
+        )}
         <strong>{stage.name || "Untitled"}</strong>
         <span className="flow-node-meta-rf">
           <span>{stage.type}</span>
           <span>{stage.platform}</span>
         </span>
-        {stage.properties.length > 0 && (
+        {!hideProperties && stage.properties.length > 0 && (
           <span className="node-property-count">{stage.properties.length} {stage.properties.length === 1 ? "property" : "properties"}</span>
         )}
       </div>
@@ -307,6 +322,7 @@ function stagesToRfNodes(
   stages: CanvasStage[],
   positions: Map<string, XYPosition>,
   selectedStageId: string | null,
+  options?: { hideIcons?: boolean; hideProperties?: boolean; compactMode?: boolean },
 ): Node[] {
   return stages.map((stage, index) => ({
     id: stage.id,
@@ -318,6 +334,9 @@ function stagesToRfNodes(
       index,
       total: stages.length,
       isDecision: stage.iconKey === "decision",
+      hideIcons: options?.hideIcons,
+      hideProperties: options?.hideProperties,
+      compactMode: options?.compactMode,
     } satisfies StageNodeData,
     // Decision nodes use a 210×210 wrapper so handles land at the diamond tips
     width: stage.iconKey === "decision" ? DECISION_NODE_SIZE : NODE_WIDTH,
@@ -371,6 +390,9 @@ function FlowCanvasInner({
   selectedStageId,
   selectedEdgeId,
   edgeLineStyle = "smoothstep",
+  hideIcons,
+  hideProperties,
+  compactMode,
   onSelectStage,
   onSelectEdge,
   onStagePositionsChange,
@@ -378,6 +400,7 @@ function FlowCanvasInner({
   onEdgeDeleted,
 }: FlowCanvasProps) {
   const { fitView } = useReactFlow();
+  const viewOpts = useMemo(() => ({ hideIcons, hideProperties, compactMode }), [hideIcons, hideProperties, compactMode]);
 
   // ── Derive initial positions ───────────────────────────────────────────────
   // If every stage already has x/y, use those. Otherwise auto-layout.
@@ -393,32 +416,28 @@ function FlowCanvasInner({
   }, []); // intentionally stable on mount
 
   const [rfNodes, setRfNodes, onRfNodesChange] = useNodesState(
-    stagesToRfNodes(stages, initialPositions, selectedStageId),
+    stagesToRfNodes(stages, initialPositions, selectedStageId, viewOpts),
   );
   const [rfEdges, setRfEdges, onRfEdgesChange] = useEdgesState(
     canvasEdgesToRfEdges(canvasEdges, selectedEdgeId, edgeLineStyle),
   );
 
   // ── Sync external changes → React Flow state ──────────────────────────────
-  // We keep a ref of the last known stages/edges to detect external mutations
-  // (e.g. add stage, rename stage from inspector) while preserving RF positions.
   const lastStagesRef = useRef(stages);
   const lastEdgesRef = useRef(canvasEdges);
   useEffect(() => {
     const stagesChanged = stages !== lastStagesRef.current;
     const edgesChanged = canvasEdges !== lastEdgesRef.current;
 
+    const currentPositions = new Map<string, XYPosition>(
+      rfNodes.map((n) => [n.id, n.position]),
+    );
+
     if (stagesChanged) {
       const previousStages = new Map(lastStagesRef.current.map((stage) => [stage.id, stage]));
       lastStagesRef.current = stages;
-      // Preserve current positions from RF
-      const currentPositions = new Map<string, XYPosition>(
-        rfNodes.map((n) => [n.id, n.position]),
-      );
       let shouldFitView = false;
 
-      // Honor coordinates changed by an external action such as Auto arrange.
-      // A drag already updates rfNodes, so it does not trigger another fit.
       for (const stage of stages) {
         const previous = previousStages.get(stage.id);
         const current = currentPositions.get(stage.id);
@@ -459,18 +478,13 @@ function FlowCanvasInner({
         }
         shouldFitView = true;
       }
-      setRfNodes(stagesToRfNodes(stages, positions, selectedStageId));
+      setRfNodes(stagesToRfNodes(stages, positions, selectedStageId, viewOpts));
       if (shouldFitView) {
         setTimeout(() => fitView({ padding: 0.15, duration: 300 }), 0);
       }
     } else {
-      // Only selection changed
-      setRfNodes((prev) =>
-        prev.map((n) => ({
-          ...n,
-          data: { ...(n.data as object), selected: n.id === selectedStageId },
-        })),
-      );
+      // Selection or view options changed
+      setRfNodes(stagesToRfNodes(stages, currentPositions, selectedStageId, viewOpts));
     }
 
     if (edgesChanged) {
@@ -480,7 +494,7 @@ function FlowCanvasInner({
       setRfEdges(canvasEdgesToRfEdges(canvasEdges, selectedEdgeId, edgeLineStyle));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stages, canvasEdges, selectedStageId, selectedEdgeId, edgeLineStyle]);
+  }, [stages, canvasEdges, selectedStageId, selectedEdgeId, edgeLineStyle, hideIcons, hideProperties, compactMode]);
 
   // ── Node drag end — persist positions ─────────────────────────────────────
   const handleNodesChange: OnNodesChange = useCallback(

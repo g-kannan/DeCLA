@@ -415,7 +415,7 @@ const returnRequestSeedStages: CanvasStage[] = [
     iconKey: "terminal",
     color: "#2A2ACF",
     x: 1250,
-    y: 260,
+    y: 100,
     properties: [
       { id: "ret-6a-1", name: "Action", value: "Generate damage claim and initiate replacement order", kind: "custom" },
     ],
@@ -428,7 +428,7 @@ const returnRequestSeedStages: CanvasStage[] = [
     iconKey: "terminal",
     color: "#2A2ACF",
     x: 1250,
-    y: 380,
+    y: 330,
     properties: [
       { id: "ret-6b-1", name: "Action", value: "Dispatch wrong-item return label & priority replacement", kind: "custom" },
     ],
@@ -441,7 +441,7 @@ const returnRequestSeedStages: CanvasStage[] = [
     iconKey: "terminal",
     color: "#2A2ACF",
     x: 1250,
-    y: 500,
+    y: 560,
     properties: [
       { id: "ret-6c-1", name: "Action", value: "Generate standard return label and RMA tracking number", kind: "custom" },
     ],
@@ -454,7 +454,7 @@ const returnRequestSeedStages: CanvasStage[] = [
     iconKey: "decision",
     color: "#F36A10",
     x: 950,
-    y: 640,
+    y: 880,
     properties: [
       { id: "ret-7-1", name: "Question", value: "Does transaction pass automatic refund risk checks?", kind: "custom" },
       { id: "ret-7-2", name: "Outcomes", value: "Low-value, low-risk | High-value item | Suspicious pattern", kind: "custom" },
@@ -468,7 +468,7 @@ const returnRequestSeedStages: CanvasStage[] = [
     iconKey: "terminal",
     color: "#2A2ACF",
     x: 1250,
-    y: 600,
+    y: 790,
     properties: [
       { id: "ret-7a-1", name: "Action", value: "Issue instant automated refund to payment method", kind: "custom" },
     ],
@@ -481,7 +481,7 @@ const returnRequestSeedStages: CanvasStage[] = [
     iconKey: "human-action",
     color: "#7C3AED",
     x: 1250,
-    y: 720,
+    y: 1020,
     properties: [
       { id: "ret-7b-1", name: "Owner", value: "Customer Support Lead", kind: "owner" },
     ],
@@ -494,7 +494,7 @@ const returnRequestSeedStages: CanvasStage[] = [
     iconKey: "human-action",
     color: "#7C3AED",
     x: 1250,
-    y: 840,
+    y: 1250,
     properties: [
       { id: "ret-7c-1", name: "Owner", value: "Fraud Operations Team", kind: "owner" },
     ],
@@ -507,7 +507,7 @@ const returnRequestSeedStages: CanvasStage[] = [
     iconKey: "terminal",
     color: "#2A2ACF",
     x: 350,
-    y: 980,
+    y: 1150,
     properties: [
       { id: "ret-8-1", name: "Task", value: "Execute approved return, replacement, or review action", kind: "custom" },
     ],
@@ -518,24 +518,24 @@ const returnRequestSeedStages: CanvasStage[] = [
     type: "Storage",
     platform: "Salesforce",
     iconKey: "database",
-    color: "#2A2ACF",
+    color: "#059669",
     x: 350,
-    y: 1120,
+    y: 1380,
     properties: [
-      { id: "ret-9-1", name: "Output", value: "Update order status in system and notify customer", kind: "custom" },
+      { id: "ret-9-1", name: "Target", value: "Update OMS status & notify customer via email/SMS", kind: "custom" },
     ],
   },
   {
-    id: "ret-10-audit-trail",
-    name: "Records audit trail and case outcome",
+    id: "ret-10-records-audit",
+    name: "Records audit trail and analytics",
     type: "Storage",
     platform: "Snowflake",
     iconKey: "database",
-    color: "#2A2ACF",
+    color: "#0284C7",
     x: 350,
-    y: 1260,
+    y: 1610,
     properties: [
-      { id: "ret-10-1", name: "Record", value: "Save audit log, decision factors, and final case outcome", kind: "custom" },
+      { id: "ret-10-1", name: "Log", value: "Log governance audit trail to Snowflake data warehouse", kind: "custom" },
     ],
   },
   {
@@ -544,11 +544,11 @@ const returnRequestSeedStages: CanvasStage[] = [
     type: "User Interface",
     platform: "Streamlit",
     iconKey: "user-interface",
-    color: "#16A34A",
+    color: "#059669",
     x: 350,
-    y: 1400,
+    y: 1840,
     properties: [
-      { id: "ret-11-1", name: "Status", value: "Return case successfully completed", kind: "custom" },
+      { id: "ret-11-1", name: "Status", value: "Resolution complete and case closed", kind: "custom" },
     ],
   },
 ];
@@ -677,6 +677,10 @@ export default function DecisionCanvasPage() {
   const [showExamplesMenu, setShowExamplesMenu] = useState(false);
   const [showArrangeMenu, setShowArrangeMenu] = useState(false);
   const [showLineStyleMenu, setShowLineStyleMenu] = useState(false);
+  const [showViewMenu, setShowViewMenu] = useState(false);
+  const [hideIcons, setHideIcons] = useState(false);
+  const [hideProperties, setHideProperties] = useState(false);
+  const [compactMode, setCompactMode] = useState(false);
   const [versionTags, setVersionTags] = useState<string[]>([]);
   const importInputRef = useRef<HTMLInputElement>(null);
 
@@ -798,6 +802,30 @@ export default function DecisionCanvasPage() {
     }));
   }
 
+  function handleAutoArrange(rankdir: "TB" | "LR") {
+    const arranged = getAutoLayout(stages, edges, rankdir, 85, 100);
+    setStages((current) =>
+      current.map((stage) => {
+        const pos = arranged.get(stage.id);
+        return pos ? { ...stage, x: pos.x, y: pos.y } : stage;
+      }),
+    );
+    setShowArrangeMenu(false);
+    setMessage(`Auto-arrange applied (${rankdir === "TB" ? "Vertical" : "Horizontal"})`);
+  }
+
+  function handleSpaciousArrange() {
+    const arranged = getAutoLayout(stages, edges, "LR", 115, 140);
+    setStages((current) =>
+      current.map((stage) => {
+        const pos = arranged.get(stage.id);
+        return pos ? { ...stage, x: pos.x, y: pos.y } : stage;
+      }),
+    );
+    setShowArrangeMenu(false);
+    setMessage("Spacious auto-arrange applied (zero overlap)");
+  }
+
   function addProperty(definition?: (typeof propertyPresets)[number]) {
     if (!selectedStage) return;
     const baseName = definition?.label ?? "New property";
@@ -912,12 +940,61 @@ export default function DecisionCanvasPage() {
     return value.replace(/[&<>'"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&apos;", '"': "&quot;" })[character] ?? character);
   }
 
-  function flowSvg() {
-    const cardWidth = 180;
-    const cardGap = 40;
-    const leftPad = 40;
-    const stagesWidth = stages.length * (cardWidth + cardGap);
-    const width = Math.max(960, stagesWidth + leftPad * 2);
+function getNodeHandlePos(stage: CanvasStage, handleId?: string, isTarget?: boolean) {
+  const isDecision = stage.iconKey === "decision";
+  const nw = isDecision ? 210 : 188;
+  const nh = isDecision ? 210 : 190;
+  const nx = stage.x ?? 0;
+  const ny = stage.y ?? 0;
+
+  if (isTarget) {
+    return { x: nx, y: ny + nh / 2 };
+  }
+  if (isDecision && handleId === "bottom") {
+    return { x: nx + nw / 2, y: ny + nh };
+  }
+  return { x: nx + nw, y: ny + nh / 2 };
+}
+
+function getEdgeSvgPath(
+  sx: number,
+  sy: number,
+  tx: number,
+  ty: number,
+  lineType: string = "smoothstep",
+) {
+  if (lineType === "straight") {
+    return `M ${sx} ${sy} L ${tx} ${ty}`;
+  }
+
+  if (lineType === "bezier") {
+    const dx = Math.abs(tx - sx) * 0.5;
+    return `M ${sx} ${sy} C ${sx + dx} ${sy}, ${tx - dx} ${ty}, ${tx} ${ty}`;
+  }
+
+  if (sx < tx) {
+    const midX = Math.round(sx + (tx - sx) / 2);
+    if (Math.abs(sy - ty) < 4) {
+      return `M ${sx} ${sy} L ${tx} ${ty}`;
+    }
+    const r = lineType === "step" ? 0 : Math.min(10, Math.abs(midX - sx), Math.abs(ty - sy) / 2);
+    const sySign = ty > sy ? 1 : -1;
+    if (r > 0) {
+      return `M ${sx} ${sy} L ${midX - r} ${sy} Q ${midX} ${sy} ${midX} ${sy + r * sySign} L ${midX} ${ty - r * sySign} Q ${midX} ${ty} ${midX + r} ${ty} L ${tx} ${ty}`;
+    }
+    return `M ${sx} ${sy} H ${midX} V ${ty} H ${tx}`;
+  } else {
+    const midY = Math.round(sy + (ty - sy) / 2);
+    const r = lineType === "step" ? 0 : Math.min(10, Math.abs(midY - sy), Math.abs(tx - sx) / 2);
+    if (r > 0 && Math.abs(tx - sx) > r * 2) {
+      const sxSign = tx > sx ? 1 : -1;
+      return `M ${sx} ${sy} L ${sx} ${midY - r} Q ${sx} ${midY} ${sx + r * sxSign} ${midY} L ${tx - r * sxSign} ${midY} Q ${tx} ${midY} ${tx} ${midY + r} L ${tx} ${ty}`;
+    }
+    return `M ${sx} ${sy} V ${midY} H ${tx} V ${ty}`;
+  }
+}
+
+  function flowSvg(includeFullProperties: boolean = false) {
     const title = escapeXml(processName.trim() || "Untitled project");
 
     // Project property summary row
@@ -933,46 +1010,156 @@ export default function DecisionCanvasPage() {
       `${stages.length} stage${stages.length !== 1 ? "s" : ""} · ${totalProperties} propert${totalProperties !== 1 ? "ies" : "y"}`,
     ].join("   ·   ");
 
-    const headerH = 80;
-    const propsH = 32;
-    const canvasY = headerH + propsH + 16;
-    const cardH = 164;
-    const totalH = canvasY + cardH + 40;
+    // Calculate 2D bounding box
+    const pad = 60;
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
 
-    const cards = stages.map((stage, index) => {
-      const x = leftPad + index * (cardWidth + cardGap);
-      const cy = canvasY + 42;
-      const icon = `${window.location.origin}/icons/stages/${stage.iconKey}.svg`;
-      const nextX = x + cardWidth;
-      const connector = index < stages.length - 1
-        ? `<line x1="${nextX}" y1="${canvasY + cardH / 2}" x2="${nextX + cardGap}" y2="${canvasY + cardH / 2}" stroke="#c5ccd6" stroke-width="1.5"/><path d="M ${nextX + cardGap - 6} ${canvasY + cardH / 2 - 5} L ${nextX + cardGap} ${canvasY + cardH / 2} L ${nextX + cardGap - 6} ${canvasY + cardH / 2 + 5}" fill="none" stroke="#a9b2bc" stroke-width="1.5"/>`
-        : "";
+    stages.forEach((s) => {
+      const isDecision = s.iconKey === "decision";
+      const w = isDecision ? 210 : 188;
+      const extraH = includeFullProperties && s.properties.length > 0 ? s.properties.length * 16 : 0;
+      const h = isDecision ? 210 : 190 + extraH;
+      const x = s.x ?? 0;
+      const y = s.y ?? 0;
+      minX = Math.min(minX, x);
+      minY = Math.min(minY, y);
+      maxX = Math.max(maxX, x + w);
+      maxY = Math.max(maxY, y + h);
+    });
+
+    if (!Number.isFinite(minX)) {
+      minX = 0; minY = 0; maxX = 960; maxY = 600;
+    }
+
+    const headerH = 90;
+    const viewMinX = Math.round(minX - pad);
+    const viewMinY = Math.round(minY - headerH - pad);
+    const viewWidth = Math.round(Math.max(960, (maxX - minX) + pad * 2));
+    const viewHeight = Math.round((maxY - minY) + headerH + pad * 2);
+
+    // Render Edges
+    const edgesSvg = edges.map((edge) => {
+      const fromStage = stages.find((s) => s.id === edge.fromStageId);
+      const toStage = stages.find((s) => s.id === edge.toStageId);
+      if (!fromStage || !toStage) return "";
+
+      const fromPos = getNodeHandlePos(fromStage, edge.fromHandle, false);
+      const toPos = getNodeHandlePos(toStage, edge.toHandle, true);
+
+      const pathD = getEdgeSvgPath(fromPos.x, fromPos.y, toPos.x, toPos.y, edge.lineType ?? edgeLineStyle);
+      const color = edge.color ?? "#94a3b8";
+
+      const midX = fromPos.x + (toPos.x - fromPos.x) / 2;
+      const midY = fromPos.y + (toPos.y - fromPos.y) / 2;
+
+      const labelSvg = edge.label ? [
+        `<g transform="translate(${midX}, ${midY})">`,
+        `<rect x="-34" y="-10" width="68" height="20" rx="4" fill="#ffffff" stroke="${color}" stroke-width="1.2"/>`,
+        `<text x="0" y="3.5" text-anchor="middle" fill="#1e293b" font-size="9" font-family="Arial, sans-serif" font-weight="700">${escapeXml(edge.label)}</text>`,
+        `</g>`,
+      ].join("") : "";
+
+      const arrowSvg = `<polygon points="${toPos.x - 7},${toPos.y - 4} ${toPos.x},${toPos.y} ${toPos.x - 7},${toPos.y + 4}" fill="${color}"/>`;
+
       return [
-        connector,
+        `<path d="${pathD}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round"/>`,
+        arrowSvg,
+        labelSvg,
+      ].join("");
+    }).join("");
+
+    // Render Nodes
+    const nodesSvg = stages.map((stage) => {
+      const index = stages.findIndex((s) => s.id === stage.id);
+      const isDecision = stage.iconKey === "decision";
+      const x = stage.x ?? 0;
+      const y = stage.y ?? 0;
+      const iconUrl = `${window.location.origin}/icons/stages/${stage.iconKey}.svg`;
+
+      if (isDecision) {
+        const cx = x + 105;
+        const cy = y + 105;
+        const innerPts = `${cx},${cy - 74} ${cx + 74},${cy} ${cx},${cy + 74} ${cx - 74},${cy}`;
+
+        const decisionPropsRender = includeFullProperties && stage.properties.length > 0
+          ? stage.properties.map((p, pi) => {
+              const kind = propertyKind(p);
+              let valFormatted = p.value || "—";
+              if (kind === "cost" && p.value) valFormatted = `${p.currency || budgetCurrency} ${Number(p.value).toLocaleString()}`;
+              else if (kind === "duration" && p.value) valFormatted = `${p.value} ${p.unit || "mins"}`;
+              const line = `${escapeXml(p.name)}: ${escapeXml(valFormatted)}`;
+              return `<text x="${cx}" y="${cy + 34 + pi * 13}" text-anchor="middle" fill="#475569" font-size="8" font-family="Arial, sans-serif" font-weight="600">${line.length > 24 ? line.slice(0, 22) + "…" : line}</text>`;
+            }).join("")
+          : (stage.properties.length > 0 ? `<rect x="${cx - 24}" y="${cy + 32}" width="48" height="14" rx="3" fill="#f1f5f9"/><text x="${cx}" y="${cy + 42}" text-anchor="middle" fill="#64748b" font-size="8" font-family="Arial, sans-serif" font-weight="700">${stage.properties.length} ${stage.properties.length === 1 ? "prop" : "props"}</text>` : "");
+
+        return [
+          `<g>`,
+          `<polygon points="${innerPts}" fill="#fff7ed" stroke="${stage.color}" stroke-width="2.5"/>`,
+          `<circle cx="${cx - 105}" cy="${cy}" r="4" fill="#cbd5e1" stroke="#fff" stroke-width="1.5"/>`,
+          `<circle cx="${cx + 105}" cy="${cy}" r="4" fill="#cbd5e1" stroke="#fff" stroke-width="1.5"/>`,
+          `<circle cx="${cx}" cy="${cy + 105}" r="4" fill="#cbd5e1" stroke="#fff" stroke-width="1.5"/>`,
+          `<text x="${cx}" y="${cy - 48}" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="Arial, sans-serif" font-weight="800">${String(index + 1).padStart(2, "0")}</text>`,
+          `<circle cx="${cx}" cy="${cy - 12}" r="17" fill="${stage.color}" fill-opacity=".12"/>`,
+          `<image href="${iconUrl}" x="${cx - 12}" y="${cy - 24}" width="24" height="24"/>`,
+          `<text x="${cx}" y="${cy + 22}" text-anchor="middle" fill="#1e293b" font-size="11" font-family="Arial, sans-serif" font-weight="700">${escapeXml(stage.name || "Untitled")}</text>`,
+          decisionPropsRender,
+          `</g>`,
+        ].join("");
+      }
+
+      const extraH = includeFullProperties && stage.properties.length > 0 ? stage.properties.length * 16 + 6 : 0;
+      const cardH = 190 + extraH;
+
+      const propsRender = includeFullProperties && stage.properties.length > 0
+        ? [
+            `<rect x="${x + 12}" y="${y + 134}" width="164" height="${stage.properties.length * 16 + 6}" rx="5" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>`,
+            ...stage.properties.map((p, pi) => {
+              const kind = propertyKind(p);
+              let valFormatted = p.value || "—";
+              if (kind === "cost" && p.value) valFormatted = `${p.currency || budgetCurrency} ${Number(p.value).toLocaleString()}`;
+              else if (kind === "duration" && p.value) valFormatted = `${p.value} ${p.unit || "mins"}`;
+              const line = `${escapeXml(p.name)}: ${escapeXml(valFormatted)}`;
+              return `<text x="${x + 18}" y="${y + 147 + pi * 16}" fill="#334155" font-size="8.5" font-family="Arial, sans-serif" font-weight="600">${line.length > 27 ? line.slice(0, 25) + "…" : line}</text>`;
+            })
+          ].join("")
+        : (stage.properties.length > 0 ? `<rect x="${x + 16}" y="${y + 140}" width="78" height="16" rx="4" fill="#f1f5f9"/><text x="${x + 22}" y="${y + 152}" fill="#64748b" font-size="8.5" font-family="Arial, sans-serif" font-weight="700">${stage.properties.length} ${stage.properties.length === 1 ? "property" : "properties"}</text>` : "");
+
+      return [
         `<g>`,
-        `<rect x="${x}" y="${canvasY}" width="${cardWidth}" height="${cardH}" rx="9" fill="#fff" stroke="${stage.color}" stroke-width="1.5"/>`,
-        `<rect x="${x}" y="${canvasY}" width="${cardWidth}" height="3" rx="1.5" fill="${stage.color}"/>`,
-        `<text x="${x + 12}" y="${canvasY + 20}" fill="#a0a9b4" font-size="9" font-family="Arial, sans-serif" font-weight="700">0${index + 1}</text>`,
-        `<circle cx="${x + 30}" cy="${cy}" r="18" fill="${stage.color}" fill-opacity=".1"/>`,
-        `<image href="${icon}" x="${x + 17}" y="${cy - 13}" width="24" height="24"/>`,
-        `<text x="${x + 12}" y="${cy + 34}" fill="#1e2a3a" font-size="12" font-family="Arial, sans-serif" font-weight="700">${escapeXml(stage.name || "Untitled")}</text>`,
-        `<text x="${x + 12}" y="${cy + 51}" fill="${stage.color}" font-size="9" font-family="Arial, sans-serif" font-weight="700">${escapeXml(stage.type)}</text>`,
-        `<text x="${x + 12}" y="${cy + 66}" fill="#8a93a2" font-size="9" font-family="Arial, sans-serif">${escapeXml(stage.platform)}</text>`,
-        stage.properties.length > 0 ? `<rect x="${x + 12}" y="${cy + 75}" width="${Math.min(cardWidth - 24, stage.properties.length * 10 + 32)}" height="13" rx="3" fill="#f2f3f6"/><text x="${x + 18}" y="${cy + 85}" fill="#7d8797" font-size="8" font-family="Arial, sans-serif" font-weight="700">${stage.properties.length} ${stage.properties.length === 1 ? "property" : "properties"}</text>` : "",
+        `<rect x="${x}" y="${y}" width="188" height="${cardH}" rx="12" fill="#ffffff" stroke="${stage.color}" stroke-width="1.8"/>`,
+        `<rect x="${x}" y="${y}" width="188" height="4" rx="2" fill="${stage.color}"/>`,
+        `<circle cx="${x}" cy="${y + 95}" r="4" fill="#cbd5e1" stroke="#fff" stroke-width="1.5"/>`,
+        `<circle cx="${x + 188}" cy="${y + 95}" r="4" fill="#cbd5e1" stroke="#fff" stroke-width="1.5"/>`,
+        `<text x="${x + 16}" y="${y + 24}" fill="#94a3b8" font-size="9" font-family="Arial, sans-serif" font-weight="800">${String(index + 1).padStart(2, "0")}</text>`,
+        `<circle cx="${x + 32}" cy="${y + 52}" r="17" fill="${stage.color}" fill-opacity=".12"/>`,
+        `<image href="${iconUrl}" x="${x + 20}" y="${y + 40}" width="24" height="24"/>`,
+        `<text x="${x + 16}" y="${y + 94}" fill="#1e293b" font-size="12" font-family="Arial, sans-serif" font-weight="700">${escapeXml(stage.name || "Untitled")}</text>`,
+        `<text x="${x + 16}" y="${y + 112}" fill="${stage.color}" font-size="9.5" font-family="Arial, sans-serif" font-weight="700">${escapeXml(stage.type)}</text>`,
+        `<text x="${x + 16}" y="${y + 126}" fill="#64748b" font-size="9" font-family="Arial, sans-serif">${escapeXml(stage.platform)}</text>`,
+        propsRender,
         `</g>`,
       ].join("");
     }).join("");
 
+    const headerX = viewMinX + pad;
+    const headerY = viewMinY + pad / 2;
+    const propSummaryY = headerY + 42;
+
     return [
-      `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${width}" height="${totalH}" viewBox="0 0 ${width} ${totalH}">`,
-      `<rect width="100%" height="100%" fill="#f8f9fb"/>`,
-      // Project name
-      `<text x="${leftPad}" y="38" fill="#1a2233" font-size="20" font-family="Arial, sans-serif" font-weight="700">${title}</text>`,
-      // Properties summary bar
-      `<rect x="${leftPad}" y="${headerH}" width="${width - leftPad * 2}" height="${propsH}" rx="6" fill="#fff" stroke="#e1e4e9"/>`,
-      `<text x="${leftPad + 14}" y="${headerH + 21}" fill="#6b7585" font-size="9.5" font-family="Arial, sans-serif">${escapeXml(propSummary)}</text>`,
-      // Stages
-      stages.length > 0 ? cards : `<text x="${leftPad}" y="${canvasY + 40}" fill="#a0a9b4" font-size="13" font-family="Arial, sans-serif">No stages added yet.</text>`,
+      `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${viewWidth}" height="${viewHeight}" viewBox="${viewMinX} ${viewMinY} ${viewWidth} ${viewHeight}">`,
+      `<defs>`,
+      `<pattern id="canvas-grid" width="18" height="18" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="0.8" fill="#cbd5e1"/></pattern>`,
+      `</defs>`,
+      `<rect x="${viewMinX}" y="${viewMinY}" width="${viewWidth}" height="${viewHeight}" fill="#f8fafc"/>`,
+      `<rect x="${viewMinX}" y="${viewMinY}" width="${viewWidth}" height="${viewHeight}" fill="url(#canvas-grid)"/>`,
+      `<text x="${headerX}" y="${headerY + 24}" fill="#0f172a" font-size="20" font-family="Arial, sans-serif" font-weight="700">${title}</text>`,
+      `<rect x="${headerX}" y="${propSummaryY}" width="${viewWidth - pad * 2}" height="32" rx="6" fill="#ffffff" stroke="#e2e8f0"/>`,
+      `<text x="${headerX + 14}" y="${propSummaryY + 20}" fill="#64748b" font-size="9.5" font-family="Arial, sans-serif">${escapeXml(propSummary)}</text>`,
+      edgesSvg,
+      stages.length > 0 ? nodesSvg : `<text x="${headerX}" y="${headerY + 100}" fill="#94a3b8" font-size="13" font-family="Arial, sans-serif">No stages added yet.</text>`,
       `</svg>`,
     ].join("");
   }
@@ -1023,6 +1210,53 @@ export default function DecisionCanvasPage() {
     setShowExportMenu(false);
   }
 
+  function flowHtml() {
+    const title = escapeXml(processName.trim() || "Untitled project");
+    const svgContent = flowSvg(true);
+
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${title} - 2D Decision Canvas</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #f8fafc; color: #0f172a; margin: 0; padding: 24px; }
+    .container { max-width: 1300px; margin: 0 auto; }
+    .header-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid #e2e8f0; }
+    .doc-title { font-size: 22px; font-weight: 800; color: #0f172a; margin: 0; }
+    .doc-meta { font-size: 12px; color: #64748b; font-weight: 600; }
+    .canvas-container { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; overflow-x: auto; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    .canvas-container svg { width: 100%; height: auto; display: block; }
+    @media print { body { background: #ffffff; padding: 0; } .canvas-container { border: 0; box-shadow: none; } }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header-row">
+      <h1 class="doc-title">${title}</h1>
+      <span class="doc-meta">${stages.length} stages · ${totalProperties} properties</span>
+    </div>
+    <div class="canvas-container">
+      ${svgContent}
+    </div>
+  </div>
+</body>
+</html>`;
+  }
+
+  function exportHtml() {
+    const blob = new Blob([flowHtml()], { type: "text/html;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = exportFileName("html");
+    link.click();
+    URL.revokeObjectURL(url);
+    setShowExportMenu(false);
+    setMessage("HTML document exported");
+  }
+
   function loadExample(exampleKey: "return-request" | "mortgage" = "return-request") {
     if (exampleKey === "return-request") {
       setStages(returnRequestSeedStages);
@@ -1053,18 +1287,6 @@ export default function DecisionCanvasPage() {
       setVersionTags(["Proposed", "Under review"]);
       setMessage("AI loan underwriting example loaded");
     }
-  }
-
-  function handleAutoArrange(direction: "TB" | "LR" = "TB") {
-    if (stages.length === 0) return;
-    const positions = getAutoLayout(stages, edges, direction);
-    const updatedStages = stages.map((s) => {
-      const pos = positions.get(s.id);
-      return pos ? { ...s, x: pos.x, y: pos.y } : s;
-    });
-    setStages(updatedStages);
-    setShowArrangeMenu(false);
-    setMessage(`Canvas auto-arranged (${direction === "TB" ? "Vertical" : "Horizontal"} flow)`);
   }
 
   function clearCanvas() {
@@ -1171,9 +1393,10 @@ export default function DecisionCanvasPage() {
                   <button className="secondary-button" onClick={() => setShowArrangeMenu((open) => !open)}>📐 Auto arrange <span className="button-caret">⌄</span></button>
                   {showArrangeMenu && (
                     <div className="floating-menu export-menu">
-                      <small>LAYOUT DIRECTION</small>
+                      <small>LAYOUT & SPACING</small>
                       <button onClick={() => handleAutoArrange("TB")}>↓ Vertical flow (Top to Bottom)</button>
                       <button onClick={() => handleAutoArrange("LR")}>→ Horizontal flow (Left to Right)</button>
+                      <button onClick={handleSpaciousArrange}>↔ Expand spacing (Zero overlap)</button>
                     </div>
                   )}
                 </div>
@@ -1186,6 +1409,23 @@ export default function DecisionCanvasPage() {
                       <button onClick={() => { setEdgeLineStyle("step"); setShowLineStyleMenu(false); setMessage("Line style set to L-shaped (Step)"); }}>└─┐ L-shaped (Step)</button>
                       <button onClick={() => { setEdgeLineStyle("straight"); setShowLineStyleMenu(false); setMessage("Line style set to Straight (Free flow)"); }}>─── Straight (Free flow)</button>
                       <button onClick={() => { setEdgeLineStyle("bezier"); setShowLineStyleMenu(false); setMessage("Line style set to Curved (Bezier)"); }}>∿ Curved (Bezier)</button>
+                    </div>
+                  )}
+                </div>
+                <div className="export-menu-wrap">
+                  <button className="secondary-button" onClick={() => setShowViewMenu((open) => !open)}>👁️ View options <span className="button-caret">⌄</span></button>
+                  {showViewMenu && (
+                    <div className="floating-menu export-menu">
+                      <small>CANVAS VIEW DENSITY</small>
+                      <button onClick={() => { setHideIcons((v) => !v); setShowViewMenu(false); setMessage(hideIcons ? "Stage icons shown" : "Stage icons hidden"); }}>
+                        {!hideIcons ? "☑" : "☐"} Show stage icons
+                      </button>
+                      <button onClick={() => { setHideProperties((v) => !v); setShowViewMenu(false); setMessage(hideProperties ? "Property pills shown" : "Property pills hidden"); }}>
+                        {!hideProperties ? "☑" : "☐"} Show property pills
+                      </button>
+                      <button onClick={() => { setCompactMode((v) => !v); setShowViewMenu(false); setMessage(compactMode ? "Standard view mode" : "Compact view mode"); }}>
+                        {compactMode ? "☑" : "☐"} Compact node view
+                      </button>
                     </div>
                   )}
                 </div>
@@ -1218,6 +1458,9 @@ export default function DecisionCanvasPage() {
                   selectedStageId={selectedId}
                   selectedEdgeId={selectedEdgeId}
                   edgeLineStyle={edgeLineStyle}
+                  hideIcons={hideIcons}
+                  hideProperties={hideProperties}
+                  compactMode={compactMode}
                   onSelectStage={(id) => { setSelectedId(id); setSelectedEdgeId(null); }}
                   onSelectEdge={(id) => { setSelectedEdgeId(id); setSelectedId(null); }}
                   onStagePositionsChange={handleStagePositionsChange}
