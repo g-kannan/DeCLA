@@ -116,16 +116,17 @@ test("frontend exposes AI workflow stage types with dedicated icons", async () =
   assert.match(localCanvas, /stage\.iconKey === "analytics"/);
 });
 
-test("frontend example models a governed AI loan underwriting process", async () => {
+test("frontend example models a governed weekly forecast analysis AI system", async () => {
   const canvas = await readFile(new URL("../app/canvas/page.tsx", import.meta.url), "utf8");
-  assert.match(canvas, /AI loan underwriting process/);
-  assert.match(canvas, /Is the application complete\?/);
-  assert.match(canvas, /Is applicant data verified\?/);
-  assert.match(canvas, /Is the loan policy-eligible\?/);
-  assert.match(canvas, /What is the AUS recommendation\?/);
-  assert.match(canvas, /What is the final credit action\?/);
-  assert.match(canvas, /Block if specific principal reasons cannot be reproduced/);
-  assert.match(canvas, /Cannot invent, generalize, or replace principal reasons/);
+  assert.match(canvas, /Weekly forecast analysis AI system/);
+  assert.match(canvas, /Ingest weekly forecast files/);
+  assert.match(canvas, /Mask sensitive identifiers/);
+  assert.match(canvas, /Add freeform hypothesis statements/);
+  assert.match(canvas, /LangGraph & Gemini AI SQL generation/);
+  assert.match(canvas, /D1: Are new hypotheses registered\?/);
+  assert.match(canvas, /D2: Were threshold breaches flagged\?/);
+  assert.match(canvas, /Generate multi-tab Excel report/);
+  assert.match(canvas, /Mask factory codes, country codes, & material numbers/);
   assert.doesNotMatch(canvas, /Capture lead|Qualify lead|Activate campaign/);
 });
 

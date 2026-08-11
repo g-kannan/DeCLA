@@ -42,261 +42,252 @@ const environmentOptions: { value: CanvasEnvironment; label: string }[] = [
   { value: "staging", label: "Staging" },
   { value: "production", label: "Production" },
 ];
-// Illustrative U.S. mortgage flow informed by CFPB Regulation B/TRID guidance and
-// Fannie Mae's automated-underwriting process. It is not a substitute for legal review.
+// Weekly forecast analysis AI workflow using LangGraph and Gemini AI within Databricks.
 const seedStages: CanvasStage[] = [
   {
-    id: "application-intake",
-    name: "Capture mortgage application",
-    type: "User Interface",
-    platform: "Streamlit",
-    iconKey: "user-interface",
-    color: "#16A34A",
-    properties: [
-      { id: "intake-data", name: "Required data", value: "Name, income, SSN for credit, property address/value, loan amount", kind: "custom" },
-      { id: "intake-owner", name: "Owner", value: "Digital Lending", kind: "owner" },
-      { id: "intake-duration", name: "Duration", value: "15", kind: "duration", unit: "mins" },
-    ],
-  },
-  {
-    id: "application-completeness",
-    name: "Is the application complete?",
-    type: "Decision",
-    platform: "Other",
-    iconKey: "decision",
-    color: "#F36A10",
-    properties: [
-      { id: "complete-question", name: "Question", value: "Are all six mortgage application fields present?", kind: "custom" },
-      { id: "complete-outcomes", name: "Outcomes", value: "Complete | Incomplete", kind: "custom" },
-      { id: "complete-route", name: "Incomplete route", value: "Request missing information and track notice deadline", kind: "custom" },
-    ],
-  },
-  {
-    id: "initial-disclosures",
-    name: "Issue estimate and disclosures",
-    type: "Automation",
-    platform: "Other",
-    iconKey: "terminal",
+    id: "forecast-ingestion",
+    name: "Ingest weekly forecast files",
+    type: "Input",
+    platform: "Databricks",
+    iconKey: "source",
     color: "#2A2ACF",
+    x: 350,
+    y: 0,
     properties: [
-      { id: "disclosure-output", name: "Output", value: "Loan Estimate, consent, and required disclosures", kind: "custom" },
-      { id: "disclosure-rule", name: "Timing rule", value: "Deliver or mail within 3 business days", kind: "custom" },
-      { id: "disclosure-sla", name: "SLA", value: "3", kind: "sla", unit: "days" },
+      { id: "ingest-files", name: "Data source", value: "Weekly forecast files (latest week vs WoW & YoY)", kind: "custom" },
+      { id: "ingest-scale", name: "Volume", value: "Millions of forecast rows", kind: "rows", unit: "rows" },
+      { id: "ingest-owner", name: "Owner", value: "Data Engineering", kind: "owner" },
+      { id: "ingest-duration", name: "Duration", value: "15", kind: "duration", unit: "mins" },
     ],
   },
   {
-    id: "document-upload",
-    name: "Collect supporting documents",
-    type: "User Interface",
-    platform: "Streamlit",
-    iconKey: "user-interface",
-    color: "#16A34A",
-    properties: [
-      { id: "upload-docs", name: "Documents", value: "Income, employment, assets, identity, and property", kind: "custom" },
-      { id: "upload-audience", name: "Audience", value: "Borrower and loan officer", kind: "custom" },
-      { id: "upload-auth", name: "Authentication", value: "MFA with encrypted upload", kind: "custom" },
-    ],
-  },
-  {
-    id: "document-intelligence",
-    name: "Extract and classify documents",
-    type: "LLM",
-    platform: "OpenAI",
-    iconKey: "llm",
-    color: "#DB2777",
-    properties: [
-      { id: "doc-task", name: "Task", value: "Classify files and extract structured fields with source citations", kind: "custom" },
-      { id: "doc-model", name: "Model", value: "Approved multimodal model", kind: "custom" },
-      { id: "doc-threshold", name: "Confidence threshold", value: "0.92", kind: "custom" },
-      { id: "doc-guardrail", name: "Guardrail", value: "No credit decision; low-confidence fields require review", kind: "custom" },
-    ],
-  },
-  {
-    id: "data-verification-decision",
-    name: "Is applicant data verified?",
-    type: "Decision",
-    platform: "Other",
-    iconKey: "decision",
-    color: "#F36A10",
-    properties: [
-      { id: "verify-question", name: "Question", value: "Do application, document, and third-party values reconcile?", kind: "custom" },
-      { id: "verify-outcomes", name: "Outcomes", value: "Verified | Clarification needed | Suspected fraud", kind: "custom" },
-      { id: "verify-route", name: "Exception route", value: "Loan processor or fraud analyst", kind: "custom" },
-    ],
-  },
-  {
-    id: "verification-review",
-    name: "Resolve verification exceptions",
-    type: "Human Action",
-    platform: "Other",
-    iconKey: "human-action",
-    color: "#7C3AED",
-    properties: [
-      { id: "review-trigger", name: "Trigger", value: "Mismatch, missing evidence, low confidence, or fraud alert", kind: "custom" },
-      { id: "review-owner", name: "Owner", value: "Loan Processor / Fraud Analyst", kind: "owner" },
-      { id: "review-evidence", name: "Required record", value: "Resolution, supporting evidence, and reviewer identity", kind: "custom" },
-      { id: "review-sla", name: "SLA", value: "2", kind: "sla", unit: "days" },
-    ],
-  },
-  {
-    id: "credit-verifications",
-    name: "Retrieve credit and verifications",
-    type: "Automation",
-    platform: "Other",
-    iconKey: "terminal",
-    color: "#2A2ACF",
-    properties: [
-      { id: "credit-inputs", name: "Inputs", value: "Credit report, income, employment, assets, and liabilities", kind: "custom" },
-      { id: "credit-consent", name: "Consent required", value: "Yes", kind: "custom" },
-      { id: "credit-output", name: "Output", value: "Verified and traceable loan casefile", kind: "custom" },
-    ],
-  },
-  {
-    id: "eligibility-gate",
-    name: "Is the loan policy-eligible?",
-    type: "Business Rule",
-    platform: "Other",
-    iconKey: "business-rule",
-    color: "#0891B2",
-    properties: [
-      { id: "eligibility-rules", name: "Rules", value: "Product, purpose, occupancy, property, loan limit, and LTV", kind: "custom" },
-      { id: "eligibility-outcomes", name: "Outcomes", value: "Eligible | Ineligible | Policy exception", kind: "custom" },
-      { id: "eligibility-route", name: "Exception route", value: "Alternative product or human underwriting", kind: "custom" },
-    ],
-  },
-  {
-    id: "capacity-calculation",
-    name: "Calculate repayment capacity",
+    id: "data-privacy-masking",
+    name: "Mask sensitive identifiers",
     type: "Transform",
-    platform: "Other",
+    platform: "Databricks",
     iconKey: "transform",
     color: "#F36A10",
+    x: 350,
+    y: 120,
     properties: [
-      { id: "capacity-metrics", name: "Metrics", value: "DTI, housing expense, LTV, reserves, and residual cash flow", kind: "custom" },
-      { id: "capacity-engine", name: "Engine", value: "Versioned deterministic calculator", kind: "custom" },
-      { id: "capacity-guardrail", name: "Guardrail", value: "No LLM-generated financial calculations", kind: "custom" },
+      { id: "masking-rule", name: "Privacy rule", value: "Mask factory codes, country codes, & material numbers", kind: "custom" },
+      { id: "masking-audit", name: "Audit trail", value: "Unity Catalog lineage and column masking", kind: "custom" },
+      { id: "masking-guardrail", name: "Guardrail", value: "Zero unmasked sensitive identifiers sent to LLM", kind: "custom" },
     ],
   },
   {
-    id: "risk-assessment",
-    name: "Run credit risk assessment",
+    id: "delta-lake-storage",
+    name: "Store in Delta Lake & Unity Catalog",
+    type: "Storage",
+    platform: "Databricks",
+    iconKey: "database",
+    color: "#2A2ACF",
+    x: 350,
+    y: 240,
+    properties: [
+      { id: "delta-warehouse", name: "Storage engine", value: "Databricks Delta Lake tables", kind: "custom" },
+      { id: "delta-levels", name: "Analysis levels", value: "1. Total volume | 2. Country sourcing | 3. Factory/Item | 4. Lifecycle", kind: "custom" },
+      { id: "delta-audit", name: "Governance", value: "Full Unity Catalog security and audit trail", kind: "custom" },
+    ],
+  },
+  {
+    id: "hypothesis-input",
+    name: "Add freeform hypothesis statements",
+    type: "Human Action",
+    platform: "Other",
+    iconKey: "human-action",
+    color: "#7C3AED",
+    x: 700,
+    y: 120,
+    properties: [
+      { id: "hypo-method", name: "Input mode", value: "Plain language statements with zero code changes", kind: "custom" },
+      { id: "hypo-owner", name: "Owner", value: "Business Users & Demand Planners", kind: "owner" },
+      { id: "hypo-scope", name: "Impact", value: "Expands coverage to new questions, brands, or verticals", kind: "custom" },
+      { id: "hypo-sla", name: "SLA", value: "1", kind: "sla", unit: "hours" },
+    ],
+  },
+  {
+    id: "knowledge-graph-store",
+    name: "Knowledge graph & hypothesis store",
+    type: "Storage",
+    platform: "Databricks",
+    iconKey: "database",
+    color: "#0284C7",
+    x: 700,
+    y: 240,
+    properties: [
+      { id: "kg-schema", name: "Graph schema", value: "Domain knowledge graph & plain-language hypotheses", kind: "custom" },
+      { id: "kg-scale", name: "Scalability", value: "Scalable by design for instant analytical expansion", kind: "custom" },
+    ],
+  },
+  {
+    id: "privacy-compliance-gate",
+    name: "Is data privacy control enforced?",
+    type: "Business Rule",
+    platform: "Databricks",
+    iconKey: "business-rule",
+    color: "#0891B2",
+    x: 350,
+    y: 380,
+    properties: [
+      { id: "privacy-rule", name: "Gate", value: "Verify factory, country, & material masks before LLM payload", kind: "custom" },
+      { id: "privacy-outcomes", name: "Outcomes", value: "Pass | Compliance hold", kind: "custom" },
+      { id: "privacy-audit", name: "Audit record", value: "Unity Catalog compliance verification log", kind: "custom" },
+    ],
+  },
+  {
+    id: "hypothesis-updated-decision",
+    name: "D1: Are new hypotheses registered?",
+    type: "Decision",
+    platform: "Other",
+    iconKey: "decision",
+    color: "#F36A10",
+    x: 525,
+    y: 520,
+    properties: [
+      { id: "d1-1", name: "Question", value: "Are new plain-language business hypotheses in Knowledge Graph?", kind: "custom" },
+      { id: "d1-2", name: "Outcomes", value: "New hypothesis loaded | Standard 20+ questions run", kind: "custom" },
+      { id: "d1-3", name: "Expansion route", value: "Dynamically append hypothesis context to LangGraph query plan", kind: "custom" },
+    ],
+  },
+  {
+    id: "langgraph-gemini-sql-gen",
+    name: "LangGraph & Gemini AI SQL generation",
+    type: "LLM",
+    platform: "Google Gemini",
+    iconKey: "llm",
+    color: "#DB2777",
+    x: 525,
+    y: 660,
+    properties: [
+      { id: "lg-1", name: "Task", value: "Dynamically generate & execute SQL for 20+ business questions", kind: "custom" },
+      { id: "lg-2", name: "Orchestration", value: "LangGraph agentic workflow inside Databricks", kind: "custom" },
+      { id: "lg-3", name: "Inputs", value: "Masked forecast rows & active knowledge graph hypotheses", kind: "custom" },
+      { id: "lg-4", name: "Guardrail", value: "No unmasked factory, country, or material identifiers", kind: "custom" },
+    ],
+  },
+  {
+    id: "sql-execution-breach-flagging",
+    name: "Execute SQL & flag threshold breaches",
+    type: "Automation",
+    platform: "Databricks",
+    iconKey: "terminal",
+    color: "#2A2ACF",
+    x: 525,
+    y: 800,
+    properties: [
+      { id: "se-1", name: "Execution", value: "Databricks SQL Warehouse against millions of rows", kind: "custom" },
+      { id: "se-2", name: "4 Levels", value: "Volume trends, country sourcing, factory/item, & product lifecycle", kind: "custom" },
+      { id: "se-3", name: "Breach detection", value: "Automated variance & threshold breach flagging", kind: "custom" },
+    ],
+  },
+  {
+    id: "breach-detection-decision",
+    name: "D2: Were threshold breaches flagged?",
+    type: "Decision",
+    platform: "Other",
+    iconKey: "decision",
+    color: "#F36A10",
+    x: 525,
+    y: 940,
+    properties: [
+      { id: "d2-1", name: "Question", value: "Do WoW or YoY forecast changes exceed anomaly thresholds?", kind: "custom" },
+      { id: "d2-2", name: "Outcomes", value: "Breach flagged (Detailed narrative) | Normal variance", kind: "custom" },
+      { id: "d2-3", name: "Flagged route", value: "Trigger deep-dive root cause analysis narrative", kind: "custom" },
+    ],
+  },
+  {
+    id: "narrative-generation",
+    name: "Produce business narrative insights",
+    type: "LLM",
+    platform: "Google Gemini",
+    iconKey: "llm",
+    color: "#DB2777",
+    x: 525,
+    y: 1080,
+    properties: [
+      { id: "narr-1", name: "Task", value: "Synthesize 4-level findings into executive narrative & key drivers", kind: "custom" },
+      { id: "narr-2", name: "Output", value: "Plain-language business story with root-cause insights", kind: "custom" },
+      { id: "narr-3", name: "Guardrail", value: "Strict grounding in executed SQL query results", kind: "custom" },
+    ],
+  },
+  {
+    id: "excel-report-generation",
+    name: "Generate multi-tab Excel report",
     type: "Automation",
     platform: "Other",
     iconKey: "terminal",
     color: "#2A2ACF",
+    x: 525,
+    y: 1220,
     properties: [
-      { id: "risk-model", name: "Model", value: "Independently validated underwriting risk model", kind: "custom" },
-      { id: "risk-factors", name: "Factors", value: "Payment history, utilization, equity/LTV, reserves, DTI, occupancy, property", kind: "custom" },
-      { id: "risk-output", name: "Output", value: "Risk assessment, principal factors, and model version", kind: "custom" },
+      { id: "xls-1", name: "Report tabs", value: "Executive Summary, 4 Level Drill-downs, & SQL Audit Log", kind: "custom" },
+      { id: "xls-2", name: "Formatting", value: "Colour-coded variance highlights & breach callouts", kind: "custom" },
+      { id: "xls-3", name: "Delivery SLA", value: "Distributed automatically within hours", kind: "custom" },
     ],
   },
   {
-    id: "explainability-compliance-gate",
-    name: "Can the result be explained?",
-    type: "Business Rule",
-    platform: "Other",
-    iconKey: "business-rule",
-    color: "#0891B2",
-    properties: [
-      { id: "explain-rule", name: "Gate", value: "Block if specific principal reasons cannot be reproduced", kind: "custom" },
-      { id: "explain-inputs", name: "Input control", value: "Verify permitted attributes, data lineage, and reason codes", kind: "custom" },
-      { id: "explain-outcomes", name: "Outcomes", value: "Pass | Compliance hold", kind: "custom" },
-    ],
-  },
-  {
-    id: "aus-recommendation",
-    name: "What is the AUS recommendation?",
-    type: "Decision",
-    platform: "Other",
-    iconKey: "decision",
-    color: "#F36A10",
-    properties: [
-      { id: "aus-question", name: "Question", value: "What recommendation does the verified casefile support?", kind: "custom" },
-      { id: "aus-outcomes", name: "Outcomes", value: "Approve/Eligible | Approve/Ineligible | Refer | Out of scope", kind: "custom" },
-      { id: "aus-route", name: "Refer route", value: "Human underwriter review", kind: "custom" },
-    ],
-  },
-  {
-    id: "human-underwriting",
-    name: "Review exceptions and conditions",
-    type: "Human Action",
-    platform: "Other",
-    iconKey: "human-action",
-    color: "#7C3AED",
-    properties: [
-      { id: "uw-trigger", name: "Trigger", value: "Refer, policy exception, out-of-scope case, or material mismatch", kind: "custom" },
-      { id: "uw-owner", name: "Owner", value: "Senior Underwriter", kind: "owner" },
-      { id: "uw-control", name: "Override control", value: "Reason, evidence, approver, and conditions required", kind: "custom" },
-      { id: "uw-sla", name: "SLA", value: "2", kind: "sla", unit: "days" },
-    ],
-  },
-  {
-    id: "final-credit-action",
-    name: "What is the final credit action?",
-    type: "Decision",
-    platform: "Other",
-    iconKey: "decision",
-    color: "#F36A10",
-    properties: [
-      { id: "final-question", name: "Question", value: "What action is supported by verified evidence and lending policy?", kind: "custom" },
-      { id: "final-outcomes", name: "Outcomes", value: "Approve with conditions | Counteroffer | Decline", kind: "custom" },
-      { id: "final-owner", name: "Owner", value: "Lender / Authorized Underwriter", kind: "owner" },
-      { id: "final-reasons", name: "Required record", value: "Actual principal factors and decision rationale", kind: "custom" },
-    ],
-  },
-  {
-    id: "decision-communication",
-    name: "Draft decision communication",
-    type: "LLM",
-    platform: "OpenAI",
-    iconKey: "llm",
-    color: "#DB2777",
-    properties: [
-      { id: "communication-task", name: "Task", value: "Draft approval conditions, counteroffer, or adverse-action notice", kind: "custom" },
-      { id: "communication-inputs", name: "Allowed inputs", value: "Locked decision, approved template, and actual reason codes", kind: "custom" },
-      { id: "communication-guardrail", name: "Guardrail", value: "Cannot invent, generalize, or replace principal reasons", kind: "custom" },
-      { id: "communication-output", name: "Output", value: "Draft pending compliance approval", kind: "custom" },
-    ],
-  },
-  {
-    id: "notice-review",
-    name: "Approve notice and disclosures",
-    type: "Human Action",
-    platform: "Other",
-    iconKey: "human-action",
-    color: "#7C3AED",
-    properties: [
-      { id: "notice-checks", name: "Checks", value: "Specific reasons, creditor details, ECOA statement, regulator, and FCRA content", kind: "custom" },
-      { id: "notice-owner", name: "Owner", value: "Compliance Operations", kind: "owner" },
-      { id: "notice-deadline", name: "Deadline", value: "Within applicable Regulation B 30-day period", kind: "custom" },
-    ],
-  },
-  {
-    id: "borrower-outcome",
-    name: "Deliver borrower outcome",
+    id: "insights-distribution-portal",
+    name: "Deliver Excel report & audit portal",
     type: "User Interface",
     platform: "Streamlit",
     iconKey: "user-interface",
     color: "#16A34A",
+    x: 350,
+    y: 1360,
     properties: [
-      { id: "outcome-views", name: "Views", value: "Conditions, counteroffer, or adverse-action notice", kind: "custom" },
-      { id: "outcome-actions", name: "Actions", value: "Acknowledge, upload conditions, accept counteroffer, or contact lender", kind: "custom" },
-      { id: "outcome-audit", name: "Audit", value: "Delivery timestamp and document version", kind: "custom" },
+      { id: "dis-1", name: "Channels", value: "Automated email distribution & web download portal", kind: "custom" },
+      { id: "dis-2", name: "Views", value: "Colour-coded Excel, Executive Summary, & SQL Audit Log", kind: "custom" },
     ],
   },
   {
-    id: "case-audit-monitoring",
-    name: "Audit and monitor outcomes",
-    type: "Storage",
-    platform: "Snowflake",
-    iconKey: "database",
-    color: "#2A2ACF",
+    id: "executive-review",
+    name: "Review report & execute actions",
+    type: "Human Action",
+    platform: "Other",
+    iconKey: "human-action",
+    color: "#7C3AED",
+    x: 350,
+    y: 1500,
     properties: [
-      { id: "audit-record", name: "Record", value: "Inputs, citations, model version, scores, reasons, overrides, and notices", kind: "custom" },
-      { id: "audit-monitoring", name: "Monitoring", value: "Data drift, model outcomes, exceptions, overrides, and fair-lending metrics", kind: "custom" },
-      { id: "audit-owner", name: "Owner", value: "Model Risk and Compliance", kind: "owner" },
+      { id: "rev-1", name: "Audience", value: "Supply Chain Directors & Demand Planning Leadership", kind: "owner" },
+      { id: "rev-2", name: "Action", value: "Validate sourcing shifts, factory adjustments & lifecycle decisions", kind: "custom" },
+      { id: "rev-3", name: "SLA", value: "4", kind: "sla", unit: "hours" },
     ],
   },
+  {
+    id: "unity-catalog-audit-log",
+    name: "Persist Unity Catalog audit log",
+    type: "Storage",
+    platform: "Databricks",
+    iconKey: "database",
+    color: "#2A2ACF",
+    x: 700,
+    y: 1360,
+    properties: [
+      { id: "aud-1", name: "Audit log", value: "Full SQL query log, LLM prompts, masked maps, & execution times", kind: "custom" },
+      { id: "aud-2", name: "Governance", value: "Zero manual intervention automated audit trail", kind: "custom" },
+    ],
+  },
+];
+
+const seedEdges: CanvasEdge[] = [
+  { id: "fe-1-2", fromStageId: "forecast-ingestion", toStageId: "data-privacy-masking" },
+  { id: "fe-2-3", fromStageId: "data-privacy-masking", toStageId: "delta-lake-storage" },
+  { id: "fe-4-5", fromStageId: "hypothesis-input", toStageId: "knowledge-graph-store" },
+  { id: "fe-3-6", fromStageId: "delta-lake-storage", toStageId: "privacy-compliance-gate" },
+  { id: "fe-5-7", fromStageId: "knowledge-graph-store", toStageId: "hypothesis-updated-decision" },
+  { id: "fe-6-7", fromStageId: "privacy-compliance-gate", toStageId: "hypothesis-updated-decision", label: "Pass", color: "#16a34a" },
+  { id: "fe-7-8a", fromStageId: "hypothesis-updated-decision", toStageId: "langgraph-gemini-sql-gen", label: "New hypothesis", color: "#16a34a" },
+  { id: "fe-7-8b", fromStageId: "hypothesis-updated-decision", toStageId: "langgraph-gemini-sql-gen", label: "Standard 20+ questions", color: "#2a2acf" },
+  { id: "fe-8-9", fromStageId: "langgraph-gemini-sql-gen", toStageId: "sql-execution-breach-flagging" },
+  { id: "fe-9-10", fromStageId: "sql-execution-breach-flagging", toStageId: "breach-detection-decision" },
+  { id: "fe-10-11a", fromStageId: "breach-detection-decision", toStageId: "narrative-generation", label: "Breach flagged", color: "#f36a10" },
+  { id: "fe-10-11b", fromStageId: "breach-detection-decision", toStageId: "narrative-generation", label: "Normal variance", color: "#16a34a" },
+  { id: "fe-11-12", fromStageId: "narrative-generation", toStageId: "excel-report-generation" },
+  { id: "fe-12-13", fromStageId: "excel-report-generation", toStageId: "insights-distribution-portal" },
+  { id: "fe-13-14", fromStageId: "insights-distribution-portal", toStageId: "executive-review" },
+  { id: "fe-12-15", fromStageId: "excel-report-generation", toStageId: "unity-catalog-audit-log" },
 ];
 
 const returnRequestSeedStages: CanvasStage[] = [
@@ -1349,7 +1340,7 @@ function getEdgeSvgPath(
     setMessage("HTML document exported");
   }
 
-  function loadExample(exampleKey: "return-request" | "mortgage" = "return-request") {
+  function loadExample(exampleKey: "return-request" | "forecast" = "return-request") {
     if (exampleKey === "return-request") {
       setStages(returnRequestSeedStages);
       setSelectedId(null);
@@ -1367,17 +1358,17 @@ function getEdgeSvgPath(
     } else {
       setStages(seedStages);
       setSelectedId(null);
-      setEdges(normalizeCanvasEdges(seedStages, []));
-      setProcessName("AI loan underwriting process");
+      setEdges(normalizeCanvasEdges(seedStages, seedEdges));
+      setProcessName("Weekly forecast analysis AI system");
       setProjectStatus("under-review");
       setEnvironment("staging");
       setGoLiveDate("");
-      setProjectBudget("45000");
+      setProjectBudget("50000");
       setBudgetCurrency("USD");
-      setProjectSla("30");
-      setProjectSlaUnit("days");
+      setProjectSla("4");
+      setProjectSlaUnit("hours");
       setVersionTags(["Proposed"]);
-      setMessage("AI loan underwriting example loaded");
+      setMessage("Weekly forecast analysis example loaded");
     }
   }
 
@@ -1443,7 +1434,7 @@ function getEdgeSvgPath(
           </div>
           <div className="process-heading-actions">
             <div className="header-status-group"><label className={`project-status-control header-project-status ${projectStatus}`}><span>PROJECT STATUS</span><SearchableSelect value={projectStatus} options={statusOptions} onChange={(value) => setProjectStatus(value as CanvasStatus)} ariaLabel="Project status" /></label></div>
-            <div className="export-menu-wrap"><button className="secondary-button" onClick={() => setShowExamplesMenu((open) => !open)}>Examples <span className="button-caret">⌄</span></button>{showExamplesMenu && <div className="floating-menu export-menu"><small>LOAD EXAMPLE WORKFLOW</small><button onClick={() => { loadExample("return-request"); setShowExamplesMenu(false); }}>Customer return request</button><button onClick={() => { loadExample("mortgage"); setShowExamplesMenu(false); }}>AI loan underwriting</button></div>}</div>
+            <div className="export-menu-wrap"><button className="secondary-button" onClick={() => setShowExamplesMenu((open) => !open)}>Examples <span className="button-caret">⌄</span></button>{showExamplesMenu && <div className="floating-menu export-menu"><small>LOAD EXAMPLE WORKFLOW</small><button onClick={() => { loadExample("return-request"); setShowExamplesMenu(false); }}>Customer return request</button><button onClick={() => { loadExample("forecast"); setShowExamplesMenu(false); }}>Weekly forecast analysis</button></div>}</div>
             <button className="secondary-button" onClick={() => setMessage("Share link copied to clipboard")}>Share</button>
             <button className="secondary-button" onClick={saveDraft}>Save version</button>
             <input ref={importInputRef} className="hidden-file-input" type="file" accept=".decla" onChange={handleImport} /><button className="secondary-button" onClick={() => importInputRef.current?.click()}>Import file</button><button className="primary-button" onClick={saveDeclaFile}>Save to File</button><div className="export-menu-wrap"><button className="secondary-button" onClick={() => setShowExportMenu((open) => !open)}>Export <span className="button-caret">⌄</span></button>{showExportMenu && <div className="floating-menu export-menu"><small>EXPORT CANVAS</small><button onClick={exportSvg}>SVG image <span>.svg</span></button><button onClick={exportPng}>PNG image <span>.png</span></button></div>}</div><button className="clear-canvas-button" onClick={clearWorkspace} disabled={!Boolean(processName || projectStatus !== "draft" || environment !== "development" || goLiveDate || projectBudget || projectSla || versionTags.length || stages.length || versions.length)}>Clear workspace</button>
