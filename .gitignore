@@ -38,8 +38,4 @@ yarn-error.log*
 
 # typescript
 next-env.d.ts
-/backend/.pytest_cache/
-/backend/.ruff_cache/
-/backend/.venv/
-**/__pycache__/
-*.py[cod]
+*.tsbuildinfo

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 import test from "node:test";
 
 test("frontend exposes a process canvas with local editing controls", async () => {
@@ -63,14 +63,20 @@ test("frontend uses the DeCLA blue and orange theme across both color modes", as
   assert.match(canvas, /color: "#F36A10"/);
 });
 
-test("frontend canvas is independent of the backend runtime", async () => {
-  const [canvas, packageJson] = await Promise.all([
+test("project is frontend-only and has no legacy API runtime", async () => {
+  const [canvas, packageJson, readme, dockerfile] = await Promise.all([
     readFile(new URL("../app/canvas/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../package.json", import.meta.url), "utf8"),
+    readFile(new URL("../README.md", import.meta.url), "utf8"),
+    readFile(new URL("../Dockerfile", import.meta.url), "utf8"),
   ]);
   assert.doesNotMatch(canvas, /@\/lib\/api|cloudflare:workers|vinext/);
   assert.match(canvas, /localStorage/);
   assert.doesNotMatch(packageJson, /wrangler|vinext|drizzle|cloudflare/i);
+  assert.doesNotMatch(`${readme}\n${dockerfile}`, /FastAPI|uvicorn|alembic|NEXT_PUBLIC_API_URL|localhost:8000/i);
+  await assert.rejects(access(new URL("../backend", import.meta.url)));
+  await assert.rejects(access(new URL("../lib/api.ts", import.meta.url)));
+  await assert.rejects(access(new URL("../docker-compose.yml", import.meta.url)));
 });
 
 test("frontend resolves stage icons from the local public icon library", async () => {
