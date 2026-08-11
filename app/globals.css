@@ -1374,6 +1374,7 @@ input:focus, select:focus, textarea:focus {
 .floating-menu button:hover { color: var(--primary-ink); background: var(--primary-soft); }
 .floating-menu button > span:last-child { margin-left: auto; color: var(--muted); font-size: 16px; }
 .menu-color { width: 7px; height: 7px; border-radius: 50%; }
+.stage-menu { right: auto; left: 0; }
 .property-menu { right: 0; width: 175px; }
 .property-menu button em { color: var(--accent-ink); font-style: normal; font-size: 15px; }
 

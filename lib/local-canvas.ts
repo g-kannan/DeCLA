@@ -36,6 +36,8 @@ export type CanvasEdge = {
   id: string;
   fromStageId: string;
   toStageId: string;
+  fromHandle?: string;
+  toHandle?: string;
   /** Human-readable label shown on the edge, e.g. "Yes", "No", "Damaged product" */
   label?: string;
   /** Edge stroke color — overrides default when set */

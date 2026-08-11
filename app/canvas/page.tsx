@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, type ChangeEvent, type CSSPropert
 import { AppShell } from "@/app/components/app-shell";
 import { CANVAS_STORAGE_KEY, nextCanvasVersion, normalizeCanvasEdges, normalizeCanvasStages, readCanvasVersions, writeCanvasDraft, writeCanvasVersions, type CanvasEdge, type CanvasEnvironment, type CanvasStage, type CanvasStageIconKey, type CanvasStatus, type CanvasVersion, type PropertyKind, type StageProperty } from "@/lib/local-canvas";
 import { StageIcon } from "@/lib/stage-icons";
-import { FlowCanvas } from "./flow-canvas";
+import { FlowCanvas, getAutoLayout } from "./flow-canvas";
 
 type StageKind = Exclude<CanvasStageIconKey, "analytics">;
 
@@ -299,6 +299,287 @@ const seedStages: CanvasStage[] = [
   },
 ];
 
+const returnRequestSeedStages: CanvasStage[] = [
+  {
+    id: "ret-customer-submits",
+    name: "Customer submits return request",
+    type: "User Interface",
+    platform: "Streamlit",
+    iconKey: "user-interface",
+    color: "#16A34A",
+    x: 350,
+    y: 0,
+    properties: [
+      { id: "ret-1-1", name: "Required data", value: "Order ID, Item ID, Reason, Photo evidence", kind: "custom" },
+    ],
+  },
+  {
+    id: "ret-agent-reads",
+    name: "Agent reads the request",
+    type: "LLM",
+    platform: "OpenAI",
+    iconKey: "llm",
+    color: "#DB2777",
+    x: 350,
+    y: 120,
+    properties: [
+      { id: "ret-2-1", name: "Task", value: "Parse customer request and extract return intent", kind: "custom" },
+    ],
+  },
+  {
+    id: "ret-retrieves-data",
+    name: "Retrieves order and customer data",
+    type: "Storage",
+    platform: "Snowflake",
+    iconKey: "database",
+    color: "#2A2ACF",
+    x: 350,
+    y: 240,
+    properties: [
+      { id: "ret-3-1", name: "Data sources", value: "Order DB, Customer profile, Delivery records", kind: "custom" },
+    ],
+  },
+  {
+    id: "ret-d1-order-valid",
+    name: "D1: Is the order valid?",
+    type: "Decision",
+    platform: "Other",
+    iconKey: "decision",
+    color: "#F36A10",
+    x: 350,
+    y: 380,
+    properties: [
+      { id: "ret-4-1", name: "Question", value: "Is the order ID active and purchase verified?", kind: "custom" },
+      { id: "ret-4-2", name: "Outcomes", value: "Yes | No", kind: "custom" },
+    ],
+  },
+  {
+    id: "ret-4a-ask-or-reject",
+    name: "Ask for more information or reject",
+    type: "Human Action",
+    platform: "Slack",
+    iconKey: "human-action",
+    color: "#7C3AED",
+    x: 50,
+    y: 380,
+    properties: [
+      { id: "ret-4a-1", name: "Action", value: "Request order details or issue rejection notice", kind: "custom" },
+    ],
+  },
+  {
+    id: "ret-d2-item-eligible",
+    name: "D2: Is the item return-eligible?",
+    type: "Decision",
+    platform: "Other",
+    iconKey: "decision",
+    color: "#F36A10",
+    x: 650,
+    y: 380,
+    properties: [
+      { id: "ret-5-1", name: "Question", value: "Is within 30-day return window and non-final sale?", kind: "custom" },
+      { id: "ret-5-2", name: "Outcomes", value: "Yes | No", kind: "custom" },
+    ],
+  },
+  {
+    id: "ret-5a-explain-policy",
+    name: "Explain policy and close case",
+    type: "Human Action",
+    platform: "Other",
+    iconKey: "human-action",
+    color: "#7C3AED",
+    x: 650,
+    y: 520,
+    properties: [
+      { id: "ret-5a-1", name: "Action", value: "Send policy explanation to customer and close case", kind: "custom" },
+    ],
+  },
+  {
+    id: "ret-d3-reason-for-return",
+    name: "D3: What is the reason for return?",
+    type: "Decision",
+    platform: "Other",
+    iconKey: "decision",
+    color: "#F36A10",
+    x: 950,
+    y: 380,
+    properties: [
+      { id: "ret-6-1", name: "Question", value: "What is the customer-reported reason for return?", kind: "custom" },
+      { id: "ret-6-2", name: "Outcomes", value: "Damaged product | Wrong product | Change of mind", kind: "custom" },
+    ],
+  },
+  {
+    id: "ret-6a-create-replacement",
+    name: "Create replacement / claim",
+    type: "Automation",
+    platform: "Other",
+    iconKey: "terminal",
+    color: "#2A2ACF",
+    x: 1250,
+    y: 260,
+    properties: [
+      { id: "ret-6a-1", name: "Action", value: "Generate damage claim and initiate replacement order", kind: "custom" },
+    ],
+  },
+  {
+    id: "ret-6b-priority-replacement",
+    name: "Arrange priority replacement",
+    type: "Automation",
+    platform: "Other",
+    iconKey: "terminal",
+    color: "#2A2ACF",
+    x: 1250,
+    y: 380,
+    properties: [
+      { id: "ret-6b-1", name: "Action", value: "Dispatch wrong-item return label & priority replacement", kind: "custom" },
+    ],
+  },
+  {
+    id: "ret-6c-standard-return",
+    name: "Start standard return",
+    type: "Automation",
+    platform: "Other",
+    iconKey: "terminal",
+    color: "#2A2ACF",
+    x: 1250,
+    y: 500,
+    properties: [
+      { id: "ret-6c-1", name: "Action", value: "Generate standard return label and RMA tracking number", kind: "custom" },
+    ],
+  },
+  {
+    id: "ret-d4-auto-refund",
+    name: "D4: Is an automatic refund permitted?",
+    type: "Decision",
+    platform: "Other",
+    iconKey: "decision",
+    color: "#F36A10",
+    x: 950,
+    y: 640,
+    properties: [
+      { id: "ret-7-1", name: "Question", value: "Does transaction pass automatic refund risk checks?", kind: "custom" },
+      { id: "ret-7-2", name: "Outcomes", value: "Low-value, low-risk | High-value item | Suspicious pattern", kind: "custom" },
+    ],
+  },
+  {
+    id: "ret-7a-approve-auto",
+    name: "Approve refund automatically",
+    type: "Automation",
+    platform: "Other",
+    iconKey: "terminal",
+    color: "#2A2ACF",
+    x: 1250,
+    y: 600,
+    properties: [
+      { id: "ret-7a-1", name: "Action", value: "Issue instant automated refund to payment method", kind: "custom" },
+    ],
+  },
+  {
+    id: "ret-7b-human-approval",
+    name: "Send for human approval",
+    type: "Human Action",
+    platform: "Other",
+    iconKey: "human-action",
+    color: "#7C3AED",
+    x: 1250,
+    y: 720,
+    properties: [
+      { id: "ret-7b-1", name: "Owner", value: "Customer Support Lead", kind: "owner" },
+    ],
+  },
+  {
+    id: "ret-7c-fraud-review",
+    name: "Send to fraud review",
+    type: "Human Action",
+    platform: "Other",
+    iconKey: "human-action",
+    color: "#7C3AED",
+    x: 1250,
+    y: 840,
+    properties: [
+      { id: "ret-7c-1", name: "Owner", value: "Fraud Operations Team", kind: "owner" },
+    ],
+  },
+  {
+    id: "ret-8-execute-action",
+    name: "Agent executes the approved action",
+    type: "Automation",
+    platform: "Other",
+    iconKey: "terminal",
+    color: "#2A2ACF",
+    x: 350,
+    y: 980,
+    properties: [
+      { id: "ret-8-1", name: "Task", value: "Execute approved return, replacement, or review action", kind: "custom" },
+    ],
+  },
+  {
+    id: "ret-9-update-system",
+    name: "Updates order system, sends message",
+    type: "Storage",
+    platform: "Salesforce",
+    iconKey: "database",
+    color: "#2A2ACF",
+    x: 350,
+    y: 1120,
+    properties: [
+      { id: "ret-9-1", name: "Output", value: "Update order status in system and notify customer", kind: "custom" },
+    ],
+  },
+  {
+    id: "ret-10-audit-trail",
+    name: "Records audit trail and case outcome",
+    type: "Storage",
+    platform: "Snowflake",
+    iconKey: "database",
+    color: "#2A2ACF",
+    x: 350,
+    y: 1260,
+    properties: [
+      { id: "ret-10-1", name: "Record", value: "Save audit log, decision factors, and final case outcome", kind: "custom" },
+    ],
+  },
+  {
+    id: "ret-11-case-completed",
+    name: "Return case completed",
+    type: "User Interface",
+    platform: "Streamlit",
+    iconKey: "user-interface",
+    color: "#16A34A",
+    x: 350,
+    y: 1400,
+    properties: [
+      { id: "ret-11-1", name: "Status", value: "Return case successfully completed", kind: "custom" },
+    ],
+  },
+];
+
+const returnRequestSeedEdges: CanvasEdge[] = [
+  { id: "e1-2", fromStageId: "ret-customer-submits", toStageId: "ret-agent-reads" },
+  { id: "e2-3", fromStageId: "ret-agent-reads", toStageId: "ret-retrieves-data" },
+  { id: "e3-4", fromStageId: "ret-retrieves-data", toStageId: "ret-d1-order-valid" },
+  { id: "e4-4a", fromStageId: "ret-d1-order-valid", toStageId: "ret-4a-ask-or-reject", label: "No", color: "#dc2626" },
+  { id: "e4-5", fromStageId: "ret-d1-order-valid", toStageId: "ret-d2-item-eligible", label: "Yes", color: "#16a34a" },
+  { id: "e4a-8", fromStageId: "ret-4a-ask-or-reject", toStageId: "ret-8-execute-action" },
+  { id: "e5-5a", fromStageId: "ret-d2-item-eligible", toStageId: "ret-5a-explain-policy", label: "No", color: "#dc2626" },
+  { id: "e5-6", fromStageId: "ret-d2-item-eligible", toStageId: "ret-d3-reason-for-return", label: "Yes", color: "#16a34a" },
+  { id: "e5a-8", fromStageId: "ret-5a-explain-policy", toStageId: "ret-8-execute-action" },
+  { id: "e6-6a", fromStageId: "ret-d3-reason-for-return", toStageId: "ret-6a-create-replacement", label: "Damaged product", color: "#16a34a" },
+  { id: "e6-6b", fromStageId: "ret-d3-reason-for-return", toStageId: "ret-6b-priority-replacement", label: "Wrong product", color: "#16a34a" },
+  { id: "e6-6c", fromStageId: "ret-d3-reason-for-return", toStageId: "ret-6c-standard-return", label: "Change of mind", color: "#16a34a" },
+  { id: "e6a-7", fromStageId: "ret-6a-create-replacement", toStageId: "ret-d4-auto-refund" },
+  { id: "e6b-7", fromStageId: "ret-6b-priority-replacement", toStageId: "ret-d4-auto-refund" },
+  { id: "e6c-7", fromStageId: "ret-6c-standard-return", toStageId: "ret-d4-auto-refund" },
+  { id: "e7-7a", fromStageId: "ret-d4-auto-refund", toStageId: "ret-7a-approve-auto", label: "Low-value, low-risk", color: "#16a34a" },
+  { id: "e7-7b", fromStageId: "ret-d4-auto-refund", toStageId: "ret-7b-human-approval", label: "High-value item", color: "#f36a10" },
+  { id: "e7-7c", fromStageId: "ret-d4-auto-refund", toStageId: "ret-7c-fraud-review", label: "Suspicious pattern", color: "#f36a10" },
+  { id: "e7a-8", fromStageId: "ret-7a-approve-auto", toStageId: "ret-8-execute-action" },
+  { id: "e7b-8", fromStageId: "ret-7b-human-approval", toStageId: "ret-8-execute-action" },
+  { id: "e7c-8", fromStageId: "ret-7c-fraud-review", toStageId: "ret-8-execute-action" },
+  { id: "e8-9", fromStageId: "ret-8-execute-action", toStageId: "ret-9-update-system" },
+  { id: "e9-10", fromStageId: "ret-9-update-system", toStageId: "ret-10-audit-trail" },
+  { id: "e10-11", fromStageId: "ret-10-audit-trail", toStageId: "ret-11-case-completed" },
+];
+
 function createId(prefix: string) {
   return `${prefix}-${Math.random().toString(36).slice(2, 8)}`;
 }
@@ -392,6 +673,8 @@ export default function DecisionCanvasPage() {
   const [hydrated, setHydrated] = useState(false);
   const [versions, setVersions] = useState<CanvasVersion[]>([]);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [showExamplesMenu, setShowExamplesMenu] = useState(false);
+  const [showArrangeMenu, setShowArrangeMenu] = useState(false);
   const [versionTags, setVersionTags] = useState<string[]>([]);
   const importInputRef = useRef<HTMLInputElement>(null);
 
@@ -711,7 +994,7 @@ export default function DecisionCanvasPage() {
         link.download = exportFileName("png");
         link.click();
         URL.revokeObjectURL(pngUrl);
-        setMessage("PNG exported");
+      setMessage("PNG exported");
       }, "image/png");
       URL.revokeObjectURL(svgUrl);
     };
@@ -723,20 +1006,48 @@ export default function DecisionCanvasPage() {
     setShowExportMenu(false);
   }
 
-  function loadExample() {
-    setStages(seedStages);
-    setSelectedId(null);
-    // Build a linear chain for the example (no pre-defined custom edges)
-    setEdges(normalizeCanvasEdges(seedStages, []));
-    setProcessName("AI loan underwriting process");
-    setProjectStatus("under-review");
-    setEnvironment("staging");
-    setProjectBudget("45000");
-    setBudgetCurrency("USD");
-    setProjectSla("30");
-    setProjectSlaUnit("days");
-    setVersionTags(["Proposed", "Under review"]);
-    setMessage("AI loan underwriting example loaded");
+  function loadExample(exampleKey: "return-request" | "mortgage" = "return-request") {
+    if (exampleKey === "return-request") {
+      setStages(returnRequestSeedStages);
+      setSelectedId(null);
+      setEdges(returnRequestSeedEdges);
+      setProcessName("Customer return request workflow");
+      setProjectStatus("approved");
+      setEnvironment("production");
+      setGoLiveDate("2026-09-01");
+      setProjectBudget("15000");
+      setBudgetCurrency("USD");
+      setProjectSla("24");
+      setProjectSlaUnit("hours");
+      setVersionTags(["Current", "Approved"]);
+      setMessage("Customer return request example loaded");
+    } else {
+      setStages(seedStages);
+      setSelectedId(null);
+      setEdges(normalizeCanvasEdges(seedStages, []));
+      setProcessName("AI loan underwriting process");
+      setProjectStatus("under-review");
+      setEnvironment("staging");
+      setGoLiveDate("");
+      setProjectBudget("45000");
+      setBudgetCurrency("USD");
+      setProjectSla("30");
+      setProjectSlaUnit("days");
+      setVersionTags(["Proposed", "Under review"]);
+      setMessage("AI loan underwriting example loaded");
+    }
+  }
+
+  function handleAutoArrange(direction: "TB" | "LR" = "TB") {
+    if (stages.length === 0) return;
+    const positions = getAutoLayout(stages, edges, direction);
+    const updatedStages = stages.map((s) => {
+      const pos = positions.get(s.id);
+      return pos ? { ...s, x: pos.x, y: pos.y } : s;
+    });
+    setStages(updatedStages);
+    setShowArrangeMenu(false);
+    setMessage(`Canvas auto-arranged (${direction === "TB" ? "Vertical" : "Horizontal"} flow)`);
   }
 
   function clearCanvas() {
@@ -774,7 +1085,9 @@ export default function DecisionCanvasPage() {
             <div className="version-tag-bar"><span>VERSION TAGS <em>Optional</em></span><div>{versionTagOptions.map((tag) => <button key={tag} className={versionTags.includes(tag) ? "selected" : ""} onClick={() => toggleVersionTag(tag)}>{tag}</button>)}</div></div>
           </div>
           <div className="process-heading-actions">
-            <div className="header-status-group"><label className={`project-status-control header-project-status ${projectStatus}`}><span>PROJECT STATUS</span><SearchableSelect value={projectStatus} options={statusOptions} onChange={(value) => setProjectStatus(value as CanvasStatus)} ariaLabel="Project status" /></label></div><button className="secondary-button" onClick={() => setMessage("Share link copied to clipboard")}>Share</button>
+            <div className="header-status-group"><label className={`project-status-control header-project-status ${projectStatus}`}><span>PROJECT STATUS</span><SearchableSelect value={projectStatus} options={statusOptions} onChange={(value) => setProjectStatus(value as CanvasStatus)} ariaLabel="Project status" /></label></div>
+            <div className="export-menu-wrap"><button className="secondary-button" onClick={() => setShowExamplesMenu((open) => !open)}>Examples <span className="button-caret">⌄</span></button>{showExamplesMenu && <div className="floating-menu export-menu"><small>LOAD EXAMPLE WORKFLOW</small><button onClick={() => { loadExample("return-request"); setShowExamplesMenu(false); }}>Customer return request</button><button onClick={() => { loadExample("mortgage"); setShowExamplesMenu(false); }}>AI loan underwriting</button></div>}</div>
+            <button className="secondary-button" onClick={() => setMessage("Share link copied to clipboard")}>Share</button>
             <input ref={importInputRef} className="hidden-file-input" type="file" accept=".decla" onChange={handleImport} /><button className="secondary-button" onClick={() => importInputRef.current?.click()}>Import file</button><button className="secondary-button" onClick={saveDraft}>Save version</button><button className="primary-button" onClick={saveDeclaFile}>Save to File</button><div className="export-menu-wrap"><button className="secondary-button" onClick={() => setShowExportMenu((open) => !open)}>Export <span className="button-caret">⌄</span></button>{showExportMenu && <div className="floating-menu export-menu"><small>EXPORT CANVAS</small><button onClick={exportSvg}>SVG image <span>.svg</span></button><button onClick={exportPng}>PNG image <span>.png</span></button></div>}</div><button className="clear-canvas-button" onClick={clearCanvas} disabled={!Boolean(processName || projectStatus !== "draft" || environment !== "development" || goLiveDate || projectBudget || projectSla || versionTags.length || stages.length || versions.length)}>Clear workspace</button>
           </div>
         </header>
@@ -817,27 +1130,6 @@ export default function DecisionCanvasPage() {
           </div>
           <div className="project-property-metric">
             <span>SCOPE</span>
-          </div>
-          <div className="project-property-metric editable-metric">
-            <span>ENVIRONMENT</span>
-            <div className="prop-control-group">
-              <SearchableSelect value={environment} options={environmentOptions} onChange={(value) => setEnvironment(value as CanvasEnvironment)} ariaLabel="Project environment" className={`prop-select-env ${environment}`} />
-            </div>
-          </div>
-          <div className="project-property-metric editable-metric">
-            <span>GO-LIVE TARGET</span>
-            <div className="prop-control-group">
-              <input type="date" value={goLiveDate} onChange={(event) => setGoLiveDate(event.target.value)} aria-label="Go-live target date" className="prop-input-date" />
-            </div>
-            <small>{goLiveDate ? formatShortDate(goLiveDate) : "Choose a target date"}</small>
-          </div>
-          <div className="project-property-metric days-pending">
-            <span>DAYS PENDING</span>
-            <strong>{pendingDays === null ? "—" : pendingDays > 0 ? pendingDays : 0}</strong>
-            <small>{pendingDays === null ? "No target date" : pendingDays > 0 ? "calendar days remaining" : pendingDays === 0 ? "go live is today" : `${Math.abs(pendingDays)} days past target`}</small>
-          </div>
-          <div className="project-property-metric">
-            <span>SCOPE</span>
             <strong>{stages.length}<span className="prop-cap"> stages</span></strong>
             <small>{totalProperties} total properties</small>
           </div>
@@ -857,6 +1149,16 @@ export default function DecisionCanvasPage() {
                     {stageTypes.map((kind) => <button key={kind.key} onClick={() => addStage(kind)}><span className="menu-color" style={{ background: kind.color }} />{kind.label}<span>+</span></button>)}
                   </div>}
                 </div>
+                <div className="export-menu-wrap">
+                  <button className="secondary-button" onClick={() => setShowArrangeMenu((open) => !open)}>📐 Auto arrange <span className="button-caret">⌄</span></button>
+                  {showArrangeMenu && (
+                    <div className="floating-menu export-menu">
+                      <small>LAYOUT DIRECTION</small>
+                      <button onClick={() => handleAutoArrange("TB")}>↓ Vertical flow (Top to Bottom)</button>
+                      <button onClick={() => handleAutoArrange("LR")}>→ Horizontal flow (Left to Right)</button>
+                    </div>
+                  )}
+                </div>
               </div>
               <div className="canvas-toolbar-group canvas-tools-right">
                 <span className="canvas-stat"><strong>{stages.length}</strong> stages</span>
@@ -872,10 +1174,11 @@ export default function DecisionCanvasPage() {
                   <span className="blank-canvas-mark">＋</span>
                   <span className="process-eyebrow">BLANK PROCESS CANVAS</span>
                   <h2>Start mapping your process</h2>
-                  <p>Add a stage to begin, or explore the AI loan underwriting example.</p>
-                  <div>
-                    <button className="primary-button" onClick={() => setShowAddMenu(true)}>＋ Add first stage</button>
-                    <button className="secondary-button" onClick={loadExample}>Load example</button>
+                  <p>Add a stage to begin, or explore a pre-built example process.</p>
+                  <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", justifyContent: "center" }}>
+                    <button className="primary-button" onClick={() => loadExample("return-request")}>Load Return Request example</button>
+                    <button className="secondary-button" onClick={() => loadExample("mortgage")}>Load Loan Underwriting example</button>
+                    <button className="secondary-button" onClick={() => setShowAddMenu(true)}>＋ Add first stage</button>
                   </div>
                 </div>
               ) : (

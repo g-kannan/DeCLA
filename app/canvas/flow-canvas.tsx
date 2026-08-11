@@ -10,7 +10,7 @@
  * Once a user drags a node, positions are persisted back to the CanvasStage array.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, type CSSProperties } from "react";
 import {
   addEdge,
   Background,
@@ -45,33 +45,41 @@ import type { CanvasEdge, CanvasStage } from "@/lib/local-canvas";
 
 const NODE_WIDTH = 188;
 const NODE_HEIGHT = 190;
-const DAGRE_RANKDIR = "LR"; // left-to-right flow
+const DECISION_NODE_SIZE = 210;
 
 // ─── Dagre auto-layout ────────────────────────────────────────────────────────
 
-function getAutoLayout(
-  rfNodes: Node[],
-  rfEdges: Edge[],
+export function getAutoLayout(
+  stages: Pick<CanvasStage, "id" | "iconKey">[],
+  edges: Pick<CanvasEdge, "id" | "fromStageId" | "toStageId">[],
+  rankdir: "TB" | "LR" = "TB",
 ): Map<string, XYPosition> {
-  const g = new dagre.graphlib.Graph();
+  const g = new dagre.graphlib.Graph({ multigraph: true });
   g.setDefaultEdgeLabel(() => ({}));
-  g.setGraph({ rankdir: DAGRE_RANKDIR, ranksep: 80, nodesep: 45 });
+  g.setGraph({ rankdir, ranksep: 80, nodesep: 45 });
 
-  rfNodes.forEach((node) => {
-    g.setNode(node.id, { width: NODE_WIDTH, height: NODE_HEIGHT });
+  stages.forEach((stage) => {
+    const isDecision = stage.iconKey === "decision";
+    g.setNode(stage.id, {
+      width: isDecision ? DECISION_NODE_SIZE : NODE_WIDTH,
+      height: isDecision ? DECISION_NODE_SIZE : NODE_HEIGHT,
+    });
   });
-  rfEdges.forEach((edge) => {
-    g.setEdge(edge.source, edge.target);
+  const stageIds = new Set(stages.map((stage) => stage.id));
+  edges.forEach((edge) => {
+    if (stageIds.has(edge.fromStageId) && stageIds.has(edge.toStageId)) {
+      g.setEdge(edge.fromStageId, edge.toStageId, {}, edge.id);
+    }
   });
 
   dagre.layout(g);
 
   const positions = new Map<string, XYPosition>();
-  rfNodes.forEach((node) => {
-    const { x, y } = g.node(node.id);
-    positions.set(node.id, {
-      x: x - NODE_WIDTH / 2,
-      y: y - NODE_HEIGHT / 2,
+  stages.forEach((stage) => {
+    const { x, y, width, height } = g.node(stage.id);
+    positions.set(stage.id, {
+      x: Math.round(x - width / 2),
+      y: Math.round(y - height / 2),
     });
   });
   return positions;
@@ -261,8 +269,8 @@ function stagesToRfNodes(
       isDecision: stage.iconKey === "decision",
     } satisfies StageNodeData,
     // Decision nodes use a 210×210 wrapper so handles land at the diamond tips
-    width: stage.iconKey === "decision" ? 210 : NODE_WIDTH,
-    height: stage.iconKey === "decision" ? 210 : NODE_HEIGHT,
+    width: stage.iconKey === "decision" ? DECISION_NODE_SIZE : NODE_WIDTH,
+    height: stage.iconKey === "decision" ? DECISION_NODE_SIZE : NODE_HEIGHT,
   }));
 }
 
@@ -271,8 +279,10 @@ function canvasEdgesToRfEdges(edges: CanvasEdge[], selectedEdgeId: string | null
     id: edge.id,
     source: edge.fromStageId,
     target: edge.toStageId,
-    sourceHandle: "right",
-    targetHandle: "target",
+    // For legacy/default edges, let React Flow select the first compatible
+    // handle. Guessing an id can produce error 008 while nodes are remeasured.
+    sourceHandle: edge.fromHandle,
+    targetHandle: edge.toHandle,
     type: "labeledEdge",
     selected: edge.id === selectedEdgeId,
     data: { label: edge.label, color: edge.color },
@@ -300,7 +310,6 @@ function FlowCanvasInner({
   onStagePositionsChange,
   onEdgeCreated,
   onEdgeDeleted,
-  onAddStageRequest,
 }: FlowCanvasProps) {
   const { fitView } = useReactFlow();
 
@@ -313,14 +322,7 @@ function FlowCanvasInner({
       return new Map(stages.map((s) => [s.id, { x: s.x!, y: s.y! }]));
     }
     // Build temp RF nodes/edges just for layout
-    const tempNodes = stages.map((s, i) => ({
-      id: s.id,
-      type: "stageNode",
-      position: { x: i * (NODE_WIDTH + 80), y: 0 },
-      data: {},
-    })) as Node[];
-    const tempEdges = canvasEdgesToRfEdges(canvasEdges, null);
-    return getAutoLayout(tempNodes, tempEdges);
+    return getAutoLayout(stages, canvasEdges);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // intentionally stable on mount
 
@@ -336,40 +338,50 @@ function FlowCanvasInner({
   // (e.g. add stage, rename stage from inspector) while preserving RF positions.
   const lastStagesRef = useRef(stages);
   const lastEdgesRef = useRef(canvasEdges);
-  const positionsRef = useRef(initialPositions);
-
   useEffect(() => {
     const stagesChanged = stages !== lastStagesRef.current;
     const edgesChanged = canvasEdges !== lastEdgesRef.current;
 
     if (stagesChanged) {
+      const previousStages = new Map(lastStagesRef.current.map((stage) => [stage.id, stage]));
       lastStagesRef.current = stages;
       // Preserve current positions from RF
       const currentPositions = new Map<string, XYPosition>(
         rfNodes.map((n) => [n.id, n.position]),
       );
+      let shouldFitView = false;
+
+      // Honor coordinates changed by an external action such as Auto arrange.
+      // A drag already updates rfNodes, so it does not trigger another fit.
+      for (const stage of stages) {
+        const previous = previousStages.get(stage.id);
+        const current = currentPositions.get(stage.id);
+        const x = stage.x;
+        const y = stage.y;
+        const coordinatesChanged =
+          x !== undefined &&
+          y !== undefined &&
+          (previous?.x !== x || previous?.y !== y);
+
+        if (coordinatesChanged && x !== undefined && y !== undefined) {
+          currentPositions.set(stage.id, { x, y });
+          if (!current || current.x !== x || current.y !== y) {
+            shouldFitView = true;
+          }
+        }
+      }
 
       // Detect if any new stage appeared without a position → auto-layout
       const anyNew = stages.some((s) => !currentPositions.has(s.id) && s.x === undefined);
       let positions = currentPositions;
       if (anyNew) {
-        // Merge new stages into position map then re-layout
-        stages.forEach((s, i) => {
-          if (!positions.has(s.id)) {
-            positions.set(s.id, { x: i * (NODE_WIDTH + 80), y: 0 });
-          }
-        });
-        const tempNodes = stages.map((s) => ({
-          id: s.id,
-          type: "stageNode",
-          position: positions.get(s.id)!,
-          data: {},
-        })) as Node[];
-        const tempEdges = canvasEdgesToRfEdges(canvasEdges, null);
-        positions = getAutoLayout(tempNodes, tempEdges);
+        positions = getAutoLayout(stages, canvasEdges);
+        shouldFitView = true;
       }
-      positionsRef.current = positions;
       setRfNodes(stagesToRfNodes(stages, positions, selectedStageId));
+      if (shouldFitView) {
+        setTimeout(() => fitView({ padding: 0.15, duration: 300 }), 0);
+      }
     } else {
       // Only selection changed
       setRfNodes((prev) =>
@@ -432,6 +444,8 @@ function FlowCanvasInner({
         id: `edge-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         fromStageId: connection.source,
         toStageId: connection.target,
+        fromHandle: connection.sourceHandle ?? undefined,
+        toHandle: connection.targetHandle ?? undefined,
       };
       onEdgeCreated(newEdge);
 
