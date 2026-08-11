@@ -106,8 +106,36 @@ test("frontend exposes AI workflow stage types with dedicated icons", async () =
   assert.match(localCanvas, /stage\.iconKey === "analytics"/);
 });
 
+test("frontend example models a governed AI loan underwriting process", async () => {
+  const canvas = await readFile(new URL("../app/canvas/page.tsx", import.meta.url), "utf8");
+  assert.match(canvas, /AI loan underwriting process/);
+  assert.match(canvas, /Is the application complete\?/);
+  assert.match(canvas, /Is applicant data verified\?/);
+  assert.match(canvas, /Is the loan policy-eligible\?/);
+  assert.match(canvas, /What is the AUS recommendation\?/);
+  assert.match(canvas, /What is the final credit action\?/);
+  assert.match(canvas, /Block if specific principal reasons cannot be reproduced/);
+  assert.match(canvas, /Cannot invent, generalize, or replace principal reasons/);
+  assert.doesNotMatch(canvas, /Capture lead|Qualify lead|Activate campaign/);
+});
+
+test("frontend supports temporary spacebar panning outside editable controls", async () => {
+  const canvas = await readFile(new URL("../app/canvas/page.tsx", import.meta.url), "utf8");
+  assert.match(canvas, /event\.code !== "Space"/);
+  assert.match(canvas, /\["INPUT", "SELECT", "TEXTAREA"\]\.includes\(target\.tagName\)/);
+  assert.match(canvas, /setSpacePanActive\(true\)/);
+  assert.match(canvas, /activeTool === "pan" \|\| spacePanActive \|\| isPanning/);
+  assert.match(canvas, /Hold Space and drag to pan/);
+});
+
 test("project property dropdowns overlay the fixed properties strip", async () => {
   const globals = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   assert.match(globals, /\.project-properties-strip \{[^}]*overflow: visible;/s);
   assert.match(globals, /\.project-properties-strip \.searchable-select-menu/);
+});
+
+test("export dropdown overlays the project properties strip", async () => {
+  const globals = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+  assert.match(globals, /\.export-menu-wrap \{[^}]*z-index: 30;/s);
+  assert.match(globals, /\.project-properties-strip \{[^}]*z-index: 15;/s);
 });

@@ -1098,7 +1098,7 @@ input:focus, select:focus, textarea:focus {
 .header-project-status.approved .searchable-select-trigger { border-color: rgba(34,197,94,0.3); color: var(--good); background: rgba(34,197,94,0.05); }
 .header-project-status.under-review .searchable-select-trigger { border-color: rgba(245,158,11,0.3); color: var(--warning); background: rgba(245,158,11,0.05); }
 .header-project-status.archived .searchable-select-trigger { color: var(--muted); background: var(--surface-raised); }
-.export-menu-wrap { position: relative; }
+.export-menu-wrap { position: relative; z-index: 30; }
 .button-caret { margin-left: 4px; color: var(--muted); font-size: 14px; }
 .export-menu { top: calc(100% + 7px); right: 0; width: 174px; }
 .export-menu button { justify-content: space-between; }

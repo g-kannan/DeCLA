@@ -41,51 +41,260 @@ const environmentOptions: { value: CanvasEnvironment; label: string }[] = [
   { value: "staging", label: "Staging" },
   { value: "production", label: "Production" },
 ];
+// Illustrative U.S. mortgage flow informed by CFPB Regulation B/TRID guidance and
+// Fannie Mae's automated-underwriting process. It is not a substitute for legal review.
 const seedStages: CanvasStage[] = [
   {
-    id: "capture-lead",
-    name: "Capture lead",
-    type: "Input",
-    platform: "Salesforce",
-    iconKey: "source",
-    color: "#2A2ACF",
-    properties: [{ id: "p1", name: "Rows", value: "18,420", kind: "rows", unit: "rows/day" }, { id: "p2", name: "Owner", value: "RevOps", kind: "owner" }],
+    id: "application-intake",
+    name: "Capture mortgage application",
+    type: "User Interface",
+    platform: "Streamlit",
+    iconKey: "user-interface",
+    color: "#16A34A",
+    properties: [
+      { id: "intake-data", name: "Required data", value: "Name, income, SSN for credit, property address/value, loan amount", kind: "custom" },
+      { id: "intake-owner", name: "Owner", value: "Digital Lending", kind: "owner" },
+      { id: "intake-duration", name: "Duration", value: "15", kind: "duration", unit: "mins" },
+    ],
   },
   {
-    id: "qualify-lead",
-    name: "Qualify lead",
+    id: "application-completeness",
+    name: "Is the application complete?",
     type: "Decision",
-    platform: "HubSpot",
+    platform: "Other",
     iconKey: "decision",
     color: "#F36A10",
-    properties: [{ id: "p3", name: "Duration", value: "4", kind: "duration", unit: "hours" }, { id: "p4", name: "SLA", value: "1", kind: "sla", unit: "days" }],
+    properties: [
+      { id: "complete-question", name: "Question", value: "Are all six mortgage application fields present?", kind: "custom" },
+      { id: "complete-outcomes", name: "Outcomes", value: "Complete | Incomplete", kind: "custom" },
+      { id: "complete-route", name: "Incomplete route", value: "Request missing information and track notice deadline", kind: "custom" },
+    ],
   },
   {
-    id: "enrich-profile",
-    name: "Enrich profile",
+    id: "initial-disclosures",
+    name: "Issue estimate and disclosures",
+    type: "Automation",
+    platform: "Other",
+    iconKey: "terminal",
+    color: "#2A2ACF",
+    properties: [
+      { id: "disclosure-output", name: "Output", value: "Loan Estimate, consent, and required disclosures", kind: "custom" },
+      { id: "disclosure-rule", name: "Timing rule", value: "Deliver or mail within 3 business days", kind: "custom" },
+      { id: "disclosure-sla", name: "SLA", value: "3", kind: "sla", unit: "days" },
+    ],
+  },
+  {
+    id: "document-upload",
+    name: "Collect supporting documents",
+    type: "User Interface",
+    platform: "Streamlit",
+    iconKey: "user-interface",
+    color: "#16A34A",
+    properties: [
+      { id: "upload-docs", name: "Documents", value: "Income, employment, assets, identity, and property", kind: "custom" },
+      { id: "upload-audience", name: "Audience", value: "Borrower and loan officer", kind: "custom" },
+      { id: "upload-auth", name: "Authentication", value: "MFA with encrypted upload", kind: "custom" },
+    ],
+  },
+  {
+    id: "document-intelligence",
+    name: "Extract and classify documents",
+    type: "LLM",
+    platform: "OpenAI",
+    iconKey: "llm",
+    color: "#DB2777",
+    properties: [
+      { id: "doc-task", name: "Task", value: "Classify files and extract structured fields with source citations", kind: "custom" },
+      { id: "doc-model", name: "Model", value: "Approved multimodal model", kind: "custom" },
+      { id: "doc-threshold", name: "Confidence threshold", value: "0.92", kind: "custom" },
+      { id: "doc-guardrail", name: "Guardrail", value: "No credit decision; low-confidence fields require review", kind: "custom" },
+    ],
+  },
+  {
+    id: "data-verification-decision",
+    name: "Is applicant data verified?",
+    type: "Decision",
+    platform: "Other",
+    iconKey: "decision",
+    color: "#F36A10",
+    properties: [
+      { id: "verify-question", name: "Question", value: "Do application, document, and third-party values reconcile?", kind: "custom" },
+      { id: "verify-outcomes", name: "Outcomes", value: "Verified | Clarification needed | Suspected fraud", kind: "custom" },
+      { id: "verify-route", name: "Exception route", value: "Loan processor or fraud analyst", kind: "custom" },
+    ],
+  },
+  {
+    id: "verification-review",
+    name: "Resolve verification exceptions",
+    type: "Human Action",
+    platform: "Other",
+    iconKey: "human-action",
+    color: "#7C3AED",
+    properties: [
+      { id: "review-trigger", name: "Trigger", value: "Mismatch, missing evidence, low confidence, or fraud alert", kind: "custom" },
+      { id: "review-owner", name: "Owner", value: "Loan Processor / Fraud Analyst", kind: "owner" },
+      { id: "review-evidence", name: "Required record", value: "Resolution, supporting evidence, and reviewer identity", kind: "custom" },
+      { id: "review-sla", name: "SLA", value: "2", kind: "sla", unit: "days" },
+    ],
+  },
+  {
+    id: "credit-verifications",
+    name: "Retrieve credit and verifications",
+    type: "Automation",
+    platform: "Other",
+    iconKey: "terminal",
+    color: "#2A2ACF",
+    properties: [
+      { id: "credit-inputs", name: "Inputs", value: "Credit report, income, employment, assets, and liabilities", kind: "custom" },
+      { id: "credit-consent", name: "Consent required", value: "Yes", kind: "custom" },
+      { id: "credit-output", name: "Output", value: "Verified and traceable loan casefile", kind: "custom" },
+    ],
+  },
+  {
+    id: "eligibility-gate",
+    name: "Is the loan policy-eligible?",
+    type: "Business Rule",
+    platform: "Other",
+    iconKey: "business-rule",
+    color: "#0891B2",
+    properties: [
+      { id: "eligibility-rules", name: "Rules", value: "Product, purpose, occupancy, property, loan limit, and LTV", kind: "custom" },
+      { id: "eligibility-outcomes", name: "Outcomes", value: "Eligible | Ineligible | Policy exception", kind: "custom" },
+      { id: "eligibility-route", name: "Exception route", value: "Alternative product or human underwriting", kind: "custom" },
+    ],
+  },
+  {
+    id: "capacity-calculation",
+    name: "Calculate repayment capacity",
     type: "Transform",
-    platform: "dbt",
+    platform: "Other",
     iconKey: "transform",
     color: "#F36A10",
-    properties: [{ id: "p5", name: "Cost", value: "12", kind: "cost", currency: "USD" }],
+    properties: [
+      { id: "capacity-metrics", name: "Metrics", value: "DTI, housing expense, LTV, reserves, and residual cash flow", kind: "custom" },
+      { id: "capacity-engine", name: "Engine", value: "Versioned deterministic calculator", kind: "custom" },
+      { id: "capacity-guardrail", name: "Guardrail", value: "No LLM-generated financial calculations", kind: "custom" },
+    ],
   },
   {
-    id: "sync-warehouse",
-    name: "Sync to warehouse",
+    id: "risk-assessment",
+    name: "Run credit risk assessment",
+    type: "Automation",
+    platform: "Other",
+    iconKey: "terminal",
+    color: "#2A2ACF",
+    properties: [
+      { id: "risk-model", name: "Model", value: "Independently validated underwriting risk model", kind: "custom" },
+      { id: "risk-factors", name: "Factors", value: "Payment history, utilization, equity/LTV, reserves, DTI, occupancy, property", kind: "custom" },
+      { id: "risk-output", name: "Output", value: "Risk assessment, principal factors, and model version", kind: "custom" },
+    ],
+  },
+  {
+    id: "explainability-compliance-gate",
+    name: "Can the result be explained?",
+    type: "Business Rule",
+    platform: "Other",
+    iconKey: "business-rule",
+    color: "#0891B2",
+    properties: [
+      { id: "explain-rule", name: "Gate", value: "Block if specific principal reasons cannot be reproduced", kind: "custom" },
+      { id: "explain-inputs", name: "Input control", value: "Verify permitted attributes, data lineage, and reason codes", kind: "custom" },
+      { id: "explain-outcomes", name: "Outcomes", value: "Pass | Compliance hold", kind: "custom" },
+    ],
+  },
+  {
+    id: "aus-recommendation",
+    name: "What is the AUS recommendation?",
+    type: "Decision",
+    platform: "Other",
+    iconKey: "decision",
+    color: "#F36A10",
+    properties: [
+      { id: "aus-question", name: "Question", value: "What recommendation does the verified casefile support?", kind: "custom" },
+      { id: "aus-outcomes", name: "Outcomes", value: "Approve/Eligible | Approve/Ineligible | Refer | Out of scope", kind: "custom" },
+      { id: "aus-route", name: "Refer route", value: "Human underwriter review", kind: "custom" },
+    ],
+  },
+  {
+    id: "human-underwriting",
+    name: "Review exceptions and conditions",
+    type: "Human Action",
+    platform: "Other",
+    iconKey: "human-action",
+    color: "#7C3AED",
+    properties: [
+      { id: "uw-trigger", name: "Trigger", value: "Refer, policy exception, out-of-scope case, or material mismatch", kind: "custom" },
+      { id: "uw-owner", name: "Owner", value: "Senior Underwriter", kind: "owner" },
+      { id: "uw-control", name: "Override control", value: "Reason, evidence, approver, and conditions required", kind: "custom" },
+      { id: "uw-sla", name: "SLA", value: "2", kind: "sla", unit: "days" },
+    ],
+  },
+  {
+    id: "final-credit-action",
+    name: "What is the final credit action?",
+    type: "Decision",
+    platform: "Other",
+    iconKey: "decision",
+    color: "#F36A10",
+    properties: [
+      { id: "final-question", name: "Question", value: "What action is supported by verified evidence and lending policy?", kind: "custom" },
+      { id: "final-outcomes", name: "Outcomes", value: "Approve with conditions | Counteroffer | Decline", kind: "custom" },
+      { id: "final-owner", name: "Owner", value: "Lender / Authorized Underwriter", kind: "owner" },
+      { id: "final-reasons", name: "Required record", value: "Actual principal factors and decision rationale", kind: "custom" },
+    ],
+  },
+  {
+    id: "decision-communication",
+    name: "Draft decision communication",
+    type: "LLM",
+    platform: "OpenAI",
+    iconKey: "llm",
+    color: "#DB2777",
+    properties: [
+      { id: "communication-task", name: "Task", value: "Draft approval conditions, counteroffer, or adverse-action notice", kind: "custom" },
+      { id: "communication-inputs", name: "Allowed inputs", value: "Locked decision, approved template, and actual reason codes", kind: "custom" },
+      { id: "communication-guardrail", name: "Guardrail", value: "Cannot invent, generalize, or replace principal reasons", kind: "custom" },
+      { id: "communication-output", name: "Output", value: "Draft pending compliance approval", kind: "custom" },
+    ],
+  },
+  {
+    id: "notice-review",
+    name: "Approve notice and disclosures",
+    type: "Human Action",
+    platform: "Other",
+    iconKey: "human-action",
+    color: "#7C3AED",
+    properties: [
+      { id: "notice-checks", name: "Checks", value: "Specific reasons, creditor details, ECOA statement, regulator, and FCRA content", kind: "custom" },
+      { id: "notice-owner", name: "Owner", value: "Compliance Operations", kind: "owner" },
+      { id: "notice-deadline", name: "Deadline", value: "Within applicable Regulation B 30-day period", kind: "custom" },
+    ],
+  },
+  {
+    id: "borrower-outcome",
+    name: "Deliver borrower outcome",
+    type: "User Interface",
+    platform: "Streamlit",
+    iconKey: "user-interface",
+    color: "#16A34A",
+    properties: [
+      { id: "outcome-views", name: "Views", value: "Conditions, counteroffer, or adverse-action notice", kind: "custom" },
+      { id: "outcome-actions", name: "Actions", value: "Acknowledge, upload conditions, accept counteroffer, or contact lender", kind: "custom" },
+      { id: "outcome-audit", name: "Audit", value: "Delivery timestamp and document version", kind: "custom" },
+    ],
+  },
+  {
+    id: "case-audit-monitoring",
+    name: "Audit and monitor outcomes",
     type: "Storage",
     platform: "Snowflake",
     iconKey: "database",
     color: "#2A2ACF",
-    properties: [{ id: "p6", name: "Duration", value: "18", kind: "duration", unit: "mins" }, { id: "p7", name: "Rows", value: "62,800", kind: "rows", unit: "rows" }],
-  },
-  {
-    id: "activate-campaign",
-    name: "Activate campaign",
-    type: "Automation",
-    platform: "HubSpot",
-    iconKey: "terminal",
-    color: "#2A2ACF",
-    properties: [{ id: "p8", name: "Owner", value: "Marketing Ops", kind: "owner" }],
+    properties: [
+      { id: "audit-record", name: "Record", value: "Inputs, citations, model version, scores, reasons, overrides, and notices", kind: "custom" },
+      { id: "audit-monitoring", name: "Monitoring", value: "Data drift, model outcomes, exceptions, overrides, and fair-lending metrics", kind: "custom" },
+      { id: "audit-owner", name: "Owner", value: "Model Risk and Compliance", kind: "owner" },
+    ],
   },
 ];
 
@@ -178,6 +387,7 @@ export default function DecisionCanvasPage() {
   const [showPropertyMenu, setShowPropertyMenu] = useState(false);
   const [zoom, setZoom] = useState(100);
   const [activeTool, setActiveTool] = useState<"select" | "pan">("select");
+  const [spacePanActive, setSpacePanActive] = useState(false);
   const [isPanning, setIsPanning] = useState(false);
   const [message, setMessage] = useState("");
   const [hydrated, setHydrated] = useState(false);
@@ -224,6 +434,38 @@ export default function DecisionCanvasPage() {
     writeCanvasDraft({ name: processName, status: projectStatus, environment, goLiveDate, budget: projectBudget, budgetCurrency, sla: projectSla, slaUnit: projectSlaUnit, stages });
   }, [budgetCurrency, environment, goLiveDate, hydrated, processName, projectBudget, projectSla, projectSlaUnit, projectStatus, stages]);
 
+  useEffect(() => {
+    function isEditableTarget(target: EventTarget | null) {
+      return target instanceof HTMLElement && (target.isContentEditable || ["INPUT", "SELECT", "TEXTAREA"].includes(target.tagName));
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.code !== "Space" || isEditableTarget(event.target)) return;
+      event.preventDefault();
+      setSpacePanActive(true);
+    }
+
+    function handleKeyUp(event: KeyboardEvent) {
+      if (event.code !== "Space") return;
+      setSpacePanActive(false);
+    }
+
+    function handleWindowBlur() {
+      panStartRef.current = null;
+      setSpacePanActive(false);
+      setIsPanning(false);
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+    window.addEventListener("blur", handleWindowBlur);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+      window.removeEventListener("blur", handleWindowBlur);
+    };
+  }, []);
+
   const selectedStage = stages.find((stage) => stage.id === selectedId) ?? null;
   const totalProperties = useMemo(() => stages.reduce((total, stage) => total + stage.properties.length, 0), [stages]);
   const totalCost = useMemo(() => stages.reduce((total, stage) => total + stage.properties.filter((property) => propertyKind(property) === "cost").reduce((sum, property) => sum + numericValue(property.value), 0), 0), [stages]);
@@ -231,6 +473,7 @@ export default function DecisionCanvasPage() {
   const budgetTotal = numericValue(projectBudget);
   const slaTargetMinutes = targetInMinutes(projectSla, projectSlaUnit);
   const pendingDays = daysUntil(goLiveDate);
+  const panEnabled = activeTool === "pan" || spacePanActive || isPanning;
 
   function updateStage(patch: Partial<CanvasStage>) {
     if (!selectedStage) return;
@@ -490,8 +733,16 @@ export default function DecisionCanvasPage() {
 
   function loadExample() {
     setStages(seedStages);
-    setSelectedId(seedStages[2].id);
-    setMessage("Example process loaded");
+    setSelectedId("aus-recommendation");
+    setProcessName("AI loan underwriting process");
+    setProjectStatus("under-review");
+    setEnvironment("staging");
+    setProjectBudget("45000");
+    setBudgetCurrency("USD");
+    setProjectSla("30");
+    setProjectSlaUnit("days");
+    setVersionTags(["Proposed", "Under review"]);
+    setMessage("AI loan underwriting example loaded");
   }
 
   function clearCanvas() {
@@ -517,7 +768,7 @@ export default function DecisionCanvasPage() {
   }
 
   function beginPan(event: ReactPointerEvent<HTMLDivElement>) {
-    if (activeTool !== "pan" || event.button !== 0 || !viewportRef.current) return;
+    if (!panEnabled || event.button !== 0 || !viewportRef.current) return;
     const viewport = viewportRef.current;
     panStartRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, scrollLeft: viewport.scrollLeft, scrollTop: viewport.scrollTop };
     viewport.setPointerCapture(event.pointerId);
@@ -603,8 +854,8 @@ export default function DecisionCanvasPage() {
           <section className="process-canvas-panel">
             <div className="canvas-toolbar">
               <div className="canvas-toolbar-group">
-                <button className={`tool-button ${activeTool === "select" ? "active" : ""}`} onClick={() => setActiveTool("select")} aria-label="Select tool" aria-pressed={activeTool === "select"}>↖ <span>Select</span></button>
-                <button className={`tool-button ${activeTool === "pan" ? "active" : ""}`} onClick={() => setActiveTool("pan")} aria-label="Pan tool" aria-pressed={activeTool === "pan"}>✋ <span>Pan</span></button>
+                <button className={`tool-button ${activeTool === "select" && !spacePanActive ? "active" : ""}`} onClick={() => setActiveTool("select")} aria-label="Select tool" aria-pressed={activeTool === "select" && !spacePanActive}>↖ <span>Select</span></button>
+                <button className={`tool-button ${panEnabled ? "active" : ""}`} onClick={() => setActiveTool("pan")} aria-label="Pan tool" aria-pressed={panEnabled}>✋ <span>Pan</span></button>
                 <span className="toolbar-divider" />
                 <div className="add-stage-wrap">
                   <button className="add-stage-button" onClick={() => setShowAddMenu((open) => !open)}>＋ Add stage</button>
@@ -625,9 +876,9 @@ export default function DecisionCanvasPage() {
               </div>
             </div>
 
-            <div ref={viewportRef} className={`canvas-viewport ${activeTool === "pan" ? "pan-mode" : ""} ${isPanning ? "is-panning" : ""}`} onPointerDown={beginPan} onPointerMove={movePan} onPointerUp={endPan} onPointerCancel={endPan}>
+            <div ref={viewportRef} className={`canvas-viewport ${panEnabled ? "pan-mode" : ""} ${isPanning ? "is-panning" : ""}`} onPointerDown={beginPan} onPointerMove={movePan} onPointerUp={endPan} onPointerCancel={endPan}>
               <div className="canvas-surface" style={{ "--canvas-zoom": zoom / 100 } as CSSProperties}>
-                {stages.length === 0 ? <div className="blank-canvas-state"><span className="blank-canvas-mark">＋</span><span className="process-eyebrow">BLANK PROCESS CANVAS</span><h2>Start mapping your process</h2><p>Add a stage to begin, or explore the example business flow.</p><div><button className="primary-button" onClick={() => setShowAddMenu(true)}>＋ Add first stage</button><button className="secondary-button" onClick={loadExample}>Load example</button></div></div> : <>
+                  {stages.length === 0 ? <div className="blank-canvas-state"><span className="blank-canvas-mark">＋</span><span className="process-eyebrow">BLANK PROCESS CANVAS</span><h2>Start mapping your process</h2><p>Add a stage to begin, or explore the AI loan underwriting example.</p><div><button className="primary-button" onClick={() => setShowAddMenu(true)}>＋ Add first stage</button><button className="secondary-button" onClick={loadExample}>Load example</button></div></div> : <>
                   <div className="canvas-label"><span>TRIGGER</span><i /> PROCESS FLOW <i /><span>OUTCOME</span></div>
                   <div className="flow-track">
                     {stages.map((stage, index) => <div className="flow-step" key={stage.id}>
@@ -642,7 +893,7 @@ export default function DecisionCanvasPage() {
                     </div>)}
                     <button className="canvas-add-node" onClick={() => setShowAddMenu(true)}><span>＋</span><small>Add stage</small></button>
                   </div>
-                  <div className="canvas-hint"><span>Tip</span> Select any stage to edit its details and add custom properties.</div>
+                  <div className="canvas-hint"><span>Tip</span> Hold Space and drag to pan. Select any stage to edit its details.</div>
                 </>}
               </div>
             </div>
