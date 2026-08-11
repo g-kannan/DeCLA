@@ -303,7 +303,7 @@ function LabeledEdge({
     strokeOpacity = 0.18;
   } else if (edgeSearchState === "matched") {
     strokeWidth = 2.5;
-    strokeColor = selected ? "var(--primary)" : "#F59E0B";
+    strokeColor = selected ? "var(--primary)" : "var(--warning)";
   } else if (edgeSearchState === "partial") {
     strokeOpacity = 0.6;
   }
@@ -665,7 +665,7 @@ function FlowCanvasInner({
         className="rf-minimap"
         nodeColor={(n) => {
           const d = n.data as StageNodeData | undefined;
-          return d?.stage?.color ?? "#4f46e5";
+          return d?.stage?.color ?? "#F36A10";
         }}
         maskColor="rgba(0,0,0,0.06)"
       />
