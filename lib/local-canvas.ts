@@ -8,6 +8,7 @@ export type CanvasStageIconKey =
   | "human-action"
   | "business-rule"
   | "llm"
+  | "user-interface"
   | "decision"
   | "terminal"
   | "analytics";

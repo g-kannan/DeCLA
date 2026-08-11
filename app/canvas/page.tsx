@@ -14,11 +14,12 @@ const stageTypes: { label: string; key: StageKind; color: string }[] = [
   { label: "Human Action", key: "human-action", color: "#7C3AED" },
   { label: "Business Rule", key: "business-rule", color: "#0891B2" },
   { label: "LLM", key: "llm", color: "#DB2777" },
+  { label: "User Interface", key: "user-interface", color: "#16A34A" },
   { label: "Decision", key: "decision", color: "#F36A10" },
   { label: "Automation", key: "terminal", color: "#2A2ACF" },
 ];
 
-const platforms = ["OpenAI", "Anthropic", "Google Gemini", "Azure OpenAI", "AWS Bedrock", "Salesforce", "HubSpot", "Snowflake", "Databricks", "dbt", "AWS", "Other"];
+const platforms = ["OpenAI", "Anthropic", "Google Gemini", "Azure OpenAI", "AWS Bedrock", "Streamlit", "Gradio", "React", "Slack", "Microsoft Teams", "Salesforce", "HubSpot", "Snowflake", "Databricks", "dbt", "AWS", "Other"];
 const durationUnits = ["mins", "hours", "days"];
 const currencies = ["USD", "EUR", "GBP", "INR"];
 const propertyPresets: { label: string; kind: PropertyKind; unit?: string; currency?: string }[] = [
@@ -647,7 +648,7 @@ export default function DecisionCanvasPage() {
             </div>
 
             <div className="canvas-footer">
-              <span><i className="legend-dot source" /> Input</span><span><i className="legend-dot transform" /> Transform</span><span><i className="legend-dot human-action" /> Human Action</span><span><i className="legend-dot business-rule" /> Business Rule</span><span><i className="legend-dot llm" /> LLM</span><span><i className="legend-dot decision" /> Decision</span><span><i className="legend-dot output" /> Automation</span>
+              <span><i className="legend-dot source" /> Input</span><span><i className="legend-dot transform" /> Transform</span><span><i className="legend-dot human-action" /> Human Action</span><span><i className="legend-dot business-rule" /> Business Rule</span><span><i className="legend-dot llm" /> LLM</span><span><i className="legend-dot user-interface" /> User Interface</span><span><i className="legend-dot decision" /> Decision</span><span><i className="legend-dot output" /> Automation</span>
               <span className="canvas-footer-note">Changes are saved in this browser</span>
             </div>
           </section>

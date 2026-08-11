@@ -20,4 +20,4 @@ def test_core_routes_are_exposed():
 
 def test_ai_workflow_stage_types_are_seeded():
     stage_type_keys = {stage_type[0] for stage_type in STAGE_TYPES}
-    assert {"human_action", "business_rule", "llm", "decision"} <= stage_type_keys
+    assert {"human_action", "business_rule", "llm", "user_interface", "decision"} <= stage_type_keys

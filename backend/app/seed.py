@@ -88,6 +88,23 @@ STAGE_TYPES = [
         },
     ),
     (
+        "user_interface",
+        "User Interface",
+        "user_interface",
+        "UI",
+        "#16a34a",
+        {
+            "type": "object",
+            "properties": {
+                "route": {"type": "string"},
+                "audience": {"type": "string"},
+                "authentication": {"type": "string"},
+                "hosting": {"type": "string"},
+            },
+            "additionalProperties": True,
+        },
+    ),
+    (
         "transform",
         "Transformation",
         "transform",

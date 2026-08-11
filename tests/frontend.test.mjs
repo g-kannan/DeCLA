@@ -95,10 +95,13 @@ test("frontend exposes AI workflow stage types with dedicated icons", async () =
   assert.match(canvas, /label: "Human Action", key: "human-action"/);
   assert.match(canvas, /label: "Business Rule", key: "business-rule"/);
   assert.match(canvas, /label: "LLM", key: "llm"/);
+  assert.match(canvas, /label: "User Interface", key: "user-interface"/);
   assert.match(canvas, /label: "Decision", key: "decision"/);
+  assert.match(canvas, /"Streamlit"/);
   assert.match(iconLibrary, /human-action\.svg/);
   assert.match(iconLibrary, /business-rule\.svg/);
   assert.match(iconLibrary, /llm\.svg/);
+  assert.match(iconLibrary, /user-interface\.svg/);
   assert.match(iconLibrary, /decision\.svg/);
   assert.match(localCanvas, /stage\.iconKey === "analytics"/);
 });
