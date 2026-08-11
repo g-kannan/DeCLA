@@ -738,7 +738,12 @@ export default function DecisionCanvasPage() {
 
   function changeType(key: StageKind) {
     const next = stageTypes.find((item) => item.key === key) ?? stageTypes[0];
-    updateStage({ type: next.label, iconKey: next.key, color: next.color });
+    let nextName = selectedStage?.name;
+    if (key === "decision" && selectedStage && (!selectedStage.name || selectedStage.name.startsWith("New ") || selectedStage.name === "Untitled")) {
+      const decisionCount = stages.filter((s) => s.iconKey === "decision" && s.id !== selectedStage.id).length + 1;
+      nextName = `Decision d${decisionCount}`;
+    }
+    updateStage({ type: next.label, iconKey: next.key, color: next.color, ...(nextName ? { name: nextName } : {}) });
   }
 
   function addStage(kind: (typeof stageTypes)[number]) {
@@ -753,9 +758,12 @@ export default function DecisionCanvasPage() {
       y = refY;
     }
 
+    const decisionCount = stages.filter((s) => s.iconKey === "decision").length + 1;
+    const defaultName = kind.key === "decision" ? `Decision d${decisionCount}` : `New ${kind.label.toLowerCase()}`;
+
     const next: CanvasStage = {
       id: createId("stage"),
-      name: `New ${kind.label.toLowerCase()}`,
+      name: defaultName,
       type: kind.label,
       platform: "Other",
       iconKey: kind.key,
@@ -767,7 +775,7 @@ export default function DecisionCanvasPage() {
     setStages((current) => [...current, next]);
     setSelectedId(next.id);
     setShowAddMenu(false);
-    setMessage("Stage added to the process");
+    setMessage(kind.key === "decision" ? `Decision d${decisionCount} added to process` : "Stage added to the process");
   }
 
   function removeSelected() {
@@ -1080,6 +1088,7 @@ function getEdgeSvgPath(
       const iconUrl = `${window.location.origin}/icons/stages/${stage.iconKey}.svg`;
 
       if (isDecision) {
+        const decisionIndex = stages.filter((s) => s.iconKey === "decision").findIndex((s) => s.id === stage.id) + 1;
         const cx = x + 105;
         const cy = y + 105;
         const innerPts = `${cx},${cy - 74} ${cx + 74},${cy} ${cx},${cy + 74} ${cx - 74},${cy}`;
@@ -1101,7 +1110,7 @@ function getEdgeSvgPath(
           `<circle cx="${cx - 105}" cy="${cy}" r="4" fill="#cbd5e1" stroke="#fff" stroke-width="1.5"/>`,
           `<circle cx="${cx + 105}" cy="${cy}" r="4" fill="#cbd5e1" stroke="#fff" stroke-width="1.5"/>`,
           `<circle cx="${cx}" cy="${cy + 105}" r="4" fill="#cbd5e1" stroke="#fff" stroke-width="1.5"/>`,
-          `<text x="${cx}" y="${cy - 48}" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="Arial, sans-serif" font-weight="800">${String(index + 1).padStart(2, "0")}</text>`,
+          `<text x="${cx}" y="${cy - 48}" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="Arial, sans-serif" font-weight="800">d${decisionIndex}</text>`,
           `<circle cx="${cx}" cy="${cy - 12}" r="17" fill="${stage.color}" fill-opacity=".12"/>`,
           `<image href="${iconUrl}" x="${cx - 12}" y="${cy - 24}" width="24" height="24"/>`,
           `<text x="${cx}" y="${cy + 22}" text-anchor="middle" fill="#1e293b" font-size="11" font-family="Arial, sans-serif" font-weight="700">${escapeXml(stage.name || "Untitled")}</text>`,
@@ -1481,7 +1490,7 @@ function getEdgeSvgPath(
             {selectedStage ? (
               <>
                 <div className="inspector-header"><div><span className="process-eyebrow">STAGE PROPERTIES</span><h2>Edit stage</h2></div><button className="icon-button" onClick={removeSelected} aria-label="Delete selected stage">⌫</button></div>
-                <div className="inspector-stage-banner" style={{ "--node-accent": selectedStage.color } as CSSProperties}><span className="inspector-icon"><StageIcon stage={{ label: selectedStage.name, platform: selectedStage.platform, stage_type_key: selectedStage.iconKey, category: selectedStage.type }} decorative={false} /></span><div><strong>{selectedStage.name}</strong><small>Stage {String(stages.findIndex((stage) => stage.id === selectedStage.id) + 1).padStart(2, "0")} of {stages.length}</small></div></div>
+                <div className="inspector-stage-banner" style={{ "--node-accent": selectedStage.color } as CSSProperties}><span className="inspector-icon"><StageIcon stage={{ label: selectedStage.name, platform: selectedStage.platform, stage_type_key: selectedStage.iconKey, category: selectedStage.type }} decorative={false} /></span><div><strong>{selectedStage.name}</strong><small>{selectedStage.iconKey === "decision" ? `Decision d${stages.filter((s) => s.iconKey === "decision").findIndex((s) => s.id === selectedStage.id) + 1} · ` : ""}Stage {String(stages.findIndex((stage) => stage.id === selectedStage.id) + 1).padStart(2, "0")} of {stages.length}</small></div></div>
                 <div className="inspector-form">
                   <label><span>Name</span><input value={selectedStage.name} onChange={(event) => updateStage({ name: event.target.value })} placeholder="Name this stage" /></label>
                   <label><span>Type</span><SearchableSelect value={selectedStage.iconKey} options={stageTypes.map((type) => ({ value: type.key, label: type.label }))} onChange={(value) => changeType(value as StageKind)} ariaLabel="Stage type" /></label>

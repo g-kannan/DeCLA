@@ -127,13 +127,14 @@ type StageNodeData = {
   index: number;
   total: number;
   isDecision: boolean;
+  decisionLabel?: string;
   hideIcons?: boolean;
   hideProperties?: boolean;
   compactMode?: boolean;
 };
 
 function StageNode({ data }: NodeProps) {
-  const { stage, selected, index, isDecision, hideIcons, hideProperties, compactMode } = data as StageNodeData;
+  const { stage, selected, index, isDecision, decisionLabel, hideIcons, hideProperties, compactMode } = data as StageNodeData;
 
   if (isDecision) {
     return (
@@ -153,7 +154,7 @@ function StageNode({ data }: NodeProps) {
             data-selected={selected}
           />
           <div className="flow-node-decision-content">
-            <span className="flow-node-badge">{String(index + 1).padStart(2, "0")}</span>
+            <span className="flow-node-badge">{decisionLabel ?? String(index + 1).padStart(2, "0")}</span>
             {!hideIcons && (
               <span className="flow-node-icon-wrap">
                 <StageIcon
@@ -324,6 +325,15 @@ function stagesToRfNodes(
   selectedStageId: string | null,
   options?: { hideIcons?: boolean; hideProperties?: boolean; compactMode?: boolean },
 ): Node[] {
+  let decisionCounter = 0;
+  const decisionLabels = new Map<string, string>();
+  stages.forEach((s) => {
+    if (s.iconKey === "decision") {
+      decisionCounter++;
+      decisionLabels.set(s.id, `d${decisionCounter}`);
+    }
+  });
+
   return stages.map((stage, index) => ({
     id: stage.id,
     type: "stageNode",
@@ -334,6 +344,7 @@ function stagesToRfNodes(
       index,
       total: stages.length,
       isDecision: stage.iconKey === "decision",
+      decisionLabel: decisionLabels.get(stage.id),
       hideIcons: options?.hideIcons,
       hideProperties: options?.hideProperties,
       compactMode: options?.compactMode,

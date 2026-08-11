@@ -144,3 +144,15 @@ test("export dropdown overlays the project properties strip", async () => {
   assert.match(globals, /\.export-menu-wrap \{[^}]*z-index: 30;/s);
   assert.match(globals, /\.project-properties-strip \{[^}]*z-index: 15;/s);
 });
+
+test("frontend automatically formats decision count badges d1, d2 on addition and render", async () => {
+  const [page, flowCanvas] = await Promise.all([
+    readFile(new URL("../app/canvas/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/canvas/flow-canvas.tsx", import.meta.url), "utf8"),
+  ]);
+  assert.match(page, /Decision d/);
+  assert.match(page, /d\$\{decisionIndex\}/);
+  assert.match(flowCanvas, /decisionLabels\.set\(s\.id, `d\$\{decisionCounter\}`\)/);
+  assert.match(flowCanvas, /decisionLabel/);
+});
+
