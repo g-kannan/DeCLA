@@ -685,7 +685,69 @@ export default function DecisionCanvasPage() {
   const [customTags, setCustomTags] = useState<string[]>([]);
   const [showCustomTagInput, setShowCustomTagInput] = useState(false);
   const [customTagInput, setCustomTagInput] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
+
+  const searchMatchSet = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return new Set<string>();
+
+    let decisionIndex = 0;
+    const matches = new Set<string>();
+
+    stages.forEach((stage, idx) => {
+      if (stage.iconKey === "decision") {
+        decisionIndex++;
+      }
+      const stageNumStr = String(idx + 1);
+      const stageNumPad = stageNumStr.padStart(2, "0");
+      const decisionTag = stage.iconKey === "decision" ? `d${decisionIndex}` : "";
+
+      const nameMatch = stage.name.toLowerCase().includes(query);
+      const typeMatch = stage.type.toLowerCase().includes(query);
+      const platformMatch = stage.platform.toLowerCase().includes(query);
+      const iconMatch = stage.iconKey.toLowerCase().includes(query);
+      const indexMatch =
+        query === stageNumStr ||
+        query === stageNumPad ||
+        query === `stage ${stageNumStr}` ||
+        query === `stage ${stageNumPad}` ||
+        (decisionTag && (query === decisionTag || query === `decision ${decisionIndex}`));
+
+      const propMatch = stage.properties.some((p) =>
+        p.name.toLowerCase().includes(query) ||
+        p.value.toLowerCase().includes(query) ||
+        (p.unit && p.unit.toLowerCase().includes(query)) ||
+        (p.currency && p.currency.toLowerCase().includes(query))
+      );
+
+      if (nameMatch || typeMatch || platformMatch || iconMatch || indexMatch || propMatch) {
+        matches.add(stage.id);
+      }
+    });
+
+    return matches;
+  }, [searchQuery, stages]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f") {
+        const target = e.target as HTMLElement | null;
+        if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) {
+          if (target === searchInputRef.current) return;
+        }
+        e.preventDefault();
+        searchInputRef.current?.focus();
+        searchInputRef.current?.select();
+      } else if (e.key === "Escape" && document.activeElement === searchInputRef.current) {
+        setSearchQuery("");
+        searchInputRef.current?.blur();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   const allTagOptions = useMemo(() => {
     const combined = new Set([...versionTagOptions, ...customTags, ...versionTags]);
@@ -1489,7 +1551,40 @@ function getEdgeSvgPath(
                 <span className="canvas-stat"><strong>{stages.length}</strong> stages</span>
                 <span className="canvas-stat"><strong>{edges.length}</strong> connections</span>
                 <span className="canvas-stat"><strong>{totalProperties}</strong> properties</span>
-                <span className="canvas-hint">Drag from a node handle to connect · Click an edge to label it</span>
+                <div className="canvas-search-wrap">
+                  <span className="canvas-search-icon" aria-hidden="true">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="11" cy="11" r="8" />
+                      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                    </svg>
+                  </span>
+                  <input
+                    ref={searchInputRef}
+                    type="text"
+                    className="canvas-search-input"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search nodes (e.g. intake, LLM)..."
+                    aria-label="Search and highlight canvas nodes"
+                  />
+                  {searchQuery ? (
+                    <div className="canvas-search-badge-wrap">
+                      <span className={`search-match-count ${searchMatchSet.size > 0 ? "has-matches" : "no-matches"}`}>
+                        {searchMatchSet.size} {searchMatchSet.size === 1 ? "match" : "matches"}
+                      </span>
+                      <button
+                        className="canvas-search-clear"
+                        onClick={() => { setSearchQuery(""); searchInputRef.current?.focus(); }}
+                        title="Clear search (Esc)"
+                        aria-label="Clear node search"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ) : (
+                    <kbd className="canvas-search-kbd">⌘F</kbd>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -1510,6 +1605,8 @@ function getEdgeSvgPath(
                   edges={edges}
                   selectedStageId={selectedId}
                   selectedEdgeId={selectedEdgeId}
+                  searchQuery={searchQuery}
+                  searchMatchIds={searchMatchSet}
                   edgeLineStyle={edgeLineStyle}
                   hideIcons={hideIcons}
                   hideProperties={hideProperties}

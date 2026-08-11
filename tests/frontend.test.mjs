@@ -163,3 +163,32 @@ test("frontend automatically formats decision count badges d1, d2 on addition an
   assert.match(flowCanvas, /decisionLabel/);
 });
 
+test("frontend replaces hint banner with interactive searchbox to highlight specific nodes upon typing", async () => {
+  const [page, flowCanvas, globals] = await Promise.all([
+    readFile(new URL("../app/canvas/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/canvas/flow-canvas.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(page, /className="canvas-search-wrap"/);
+  assert.match(page, /className="canvas-search-input"/);
+  assert.match(page, /searchMatchSet/);
+  assert.match(page, /Search nodes \(e\.g\. intake, LLM\)\.\.\./);
+  assert.match(page, /searchQuery=\{searchQuery\}/);
+  assert.match(page, /searchMatchIds=\{searchMatchSet\}/);
+
+  assert.match(flowCanvas, /isSearchActive/);
+  assert.match(flowCanvas, /isSearchMatch/);
+  assert.match(flowCanvas, /search-match/);
+  assert.match(flowCanvas, /search-dimmed/);
+  assert.match(flowCanvas, /search-match-tag/);
+  assert.match(flowCanvas, /edgeSearchState/);
+
+  assert.match(globals, /\.canvas-search-wrap/);
+  assert.match(globals, /\.canvas-search-input/);
+  assert.match(globals, /\.flow-node-rf\.search-match/);
+  assert.match(globals, /\.flow-node-rf\.search-dimmed/);
+  assert.match(globals, /\.flow-node-decision-wrap\.search-match/);
+});
+
+

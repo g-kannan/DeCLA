@@ -97,6 +97,10 @@ export type FlowCanvasProps = {
   edges: CanvasEdge[];
   selectedStageId: string | null;
   selectedEdgeId: string | null;
+  /** Search query filter string */
+  searchQuery?: string;
+  /** Set of stage IDs that match the search query */
+  searchMatchIds?: Set<string>;
   /** Global default edge line routing style (defaults to "smoothstep" L-shaped grid routing) */
   edgeLineStyle?: CanvasEdgeLineStyle;
   /** Hide icons across canvas nodes */
@@ -131,10 +135,18 @@ type StageNodeData = {
   hideIcons?: boolean;
   hideProperties?: boolean;
   compactMode?: boolean;
+  isSearchActive?: boolean;
+  isSearchMatch?: boolean;
 };
 
 function StageNode({ data }: NodeProps) {
-  const { stage, selected, index, isDecision, decisionLabel, hideIcons, hideProperties, compactMode } = data as StageNodeData;
+  const { stage, selected, index, isDecision, decisionLabel, hideIcons, hideProperties, compactMode, isSearchActive, isSearchMatch } = data as StageNodeData;
+
+  const searchStatusClass = isSearchActive
+    ? isSearchMatch
+      ? " search-match"
+      : " search-dimmed"
+    : "";
 
   if (isDecision) {
     return (
@@ -144,17 +156,22 @@ function StageNode({ data }: NodeProps) {
 
         {/* Wrapper sized to the diamond's visual bounding box so RF positions handles correctly */}
         <div
-          className={`flow-node-decision-wrap${compactMode ? " compact-node" : ""}`}
+          className={`flow-node-decision-wrap${compactMode ? " compact-node" : ""}${searchStatusClass}`}
           data-selected={selected}
+          data-search-match={isSearchActive ? (isSearchMatch ? "true" : "false") : undefined}
           style={{ "--node-accent": stage.color } as CSSProperties}
         >
           <div
-            className="flow-node-decision"
+            className={`flow-node-decision${searchStatusClass}`}
             style={{ "--node-accent": stage.color } as CSSProperties}
             data-selected={selected}
           />
           <div className="flow-node-decision-content">
-            <span className="flow-node-badge">{decisionLabel ?? String(index + 1).padStart(2, "0")}</span>
+            {isSearchActive && isSearchMatch ? (
+              <span className="search-match-tag decision-match">MATCH</span>
+            ) : (
+              <span className="flow-node-badge">{decisionLabel ?? String(index + 1).padStart(2, "0")}</span>
+            )}
             {!hideIcons && (
               <span className="flow-node-icon-wrap">
                 <StageIcon
@@ -183,13 +200,18 @@ function StageNode({ data }: NodeProps) {
       <Handle type="target" position={Position.Left} id="target" className="rf-handle" />
 
       <div
-        className={`flow-node-rf${compactMode ? " compact-node" : ""}`}
+        className={`flow-node-rf${compactMode ? " compact-node" : ""}${searchStatusClass}`}
         style={{ "--node-accent": stage.color } as CSSProperties}
         data-selected={selected}
+        data-search-match={isSearchActive ? (isSearchMatch ? "true" : "false") : undefined}
       >
         <span className="flow-node-top-row">
           <small>{String(index + 1).padStart(2, "0")}</small>
-          <span className="node-more">•••</span>
+          {isSearchActive && isSearchMatch ? (
+            <span className="search-match-tag">MATCH</span>
+          ) : (
+            <span className="node-more">•••</span>
+          )}
         </span>
         {!hideIcons && (
           <span className="flow-node-icon-rf">
@@ -229,10 +251,11 @@ function LabeledEdge({
   markerEnd,
   style,
 }: EdgeProps) {
-  const edgeData = data as { label?: string; color?: string; lineType?: CanvasEdgeLineStyle } | undefined;
+  const edgeData = data as { label?: string; color?: string; lineType?: CanvasEdgeLineStyle; edgeSearchState?: "normal" | "matched" | "partial" | "dimmed" } | undefined;
   const label = edgeData?.label;
   const color = edgeData?.color ?? "var(--edge-default)";
   const lineType = edgeData?.lineType ?? "smoothstep";
+  const edgeSearchState = edgeData?.edgeSearchState ?? "normal";
 
   let edgePath = "";
   let labelX = 0;
@@ -278,6 +301,19 @@ function LabeledEdge({
     });
   }
 
+  let strokeColor = selected ? "var(--primary)" : color;
+  let strokeOpacity = 1;
+  let strokeWidth = selected ? 2.5 : 1.8;
+
+  if (edgeSearchState === "dimmed") {
+    strokeOpacity = 0.18;
+  } else if (edgeSearchState === "matched") {
+    strokeWidth = 2.5;
+    strokeColor = selected ? "var(--primary)" : "#F59E0B";
+  } else if (edgeSearchState === "partial") {
+    strokeOpacity = 0.6;
+  }
+
   return (
     <>
       {/* Wider invisible hit area */}
@@ -292,12 +328,12 @@ function LabeledEdge({
       <path
         id={id}
         d={edgePath}
-        strokeWidth={selected ? 2.5 : 1.8}
-        stroke={selected ? "var(--primary)" : color}
+        strokeWidth={strokeWidth}
+        stroke={strokeColor}
         fill="none"
         markerEnd={markerEnd}
         className="rf-edge-path"
-        style={style}
+        style={{ ...style, opacity: strokeOpacity }}
       />
       {label && (
         <EdgeLabelRenderer>
@@ -306,6 +342,7 @@ function LabeledEdge({
               position: "absolute",
               transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
               pointerEvents: "all",
+              opacity: edgeSearchState === "dimmed" ? 0.25 : 1,
             }}
             className={`rf-edge-label${selected ? " selected" : ""}`}
           >
@@ -323,7 +360,7 @@ function stagesToRfNodes(
   stages: CanvasStage[],
   positions: Map<string, XYPosition>,
   selectedStageId: string | null,
-  options?: { hideIcons?: boolean; hideProperties?: boolean; compactMode?: boolean },
+  options?: { hideIcons?: boolean; hideProperties?: boolean; compactMode?: boolean; searchQuery?: string; searchMatchIds?: Set<string> },
 ): Node[] {
   let decisionCounter = 0;
   const decisionLabels = new Map<string, string>();
@@ -334,34 +371,55 @@ function stagesToRfNodes(
     }
   });
 
-  return stages.map((stage, index) => ({
-    id: stage.id,
-    type: "stageNode",
-    position: positions.get(stage.id) ?? { x: index * (NODE_WIDTH + 80), y: 0 },
-    data: {
-      stage,
-      selected: stage.id === selectedStageId,
-      index,
-      total: stages.length,
-      isDecision: stage.iconKey === "decision",
-      decisionLabel: decisionLabels.get(stage.id),
-      hideIcons: options?.hideIcons,
-      hideProperties: options?.hideProperties,
-      compactMode: options?.compactMode,
-    } satisfies StageNodeData,
-    // Decision nodes use a 210×210 wrapper so handles land at the diamond tips
-    width: stage.iconKey === "decision" ? DECISION_NODE_SIZE : NODE_WIDTH,
-    height: stage.iconKey === "decision" ? DECISION_NODE_SIZE : NODE_HEIGHT,
-  }));
+  const isSearchActive = Boolean(options?.searchQuery?.trim());
+
+  return stages.map((stage, index) => {
+    const isSearchMatch = isSearchActive ? Boolean(options?.searchMatchIds?.has(stage.id)) : false;
+
+    return {
+      id: stage.id,
+      type: "stageNode",
+      position: positions.get(stage.id) ?? { x: index * (NODE_WIDTH + 80), y: 0 },
+      data: {
+        stage,
+        selected: stage.id === selectedStageId,
+        index,
+        total: stages.length,
+        isDecision: stage.iconKey === "decision",
+        decisionLabel: decisionLabels.get(stage.id),
+        hideIcons: options?.hideIcons,
+        hideProperties: options?.hideProperties,
+        compactMode: options?.compactMode,
+        isSearchActive,
+        isSearchMatch,
+      } satisfies StageNodeData,
+      // Decision nodes use a 210×210 wrapper so handles land at the diamond tips
+      width: stage.iconKey === "decision" ? DECISION_NODE_SIZE : NODE_WIDTH,
+      height: stage.iconKey === "decision" ? DECISION_NODE_SIZE : NODE_HEIGHT,
+    };
+  });
 }
 
 function canvasEdgesToRfEdges(
   edges: CanvasEdge[],
   selectedEdgeId: string | null,
   globalLineStyle: CanvasEdgeLineStyle = "smoothstep",
+  options?: { isSearchActive?: boolean; searchMatchIds?: Set<string> },
 ): Edge[] {
+  const isSearchActive = options?.isSearchActive ?? false;
+
   return edges.map((edge) => {
     const lineType = edge.lineType ?? globalLineStyle;
+    const fromMatch = options?.searchMatchIds?.has(edge.fromStageId) ?? false;
+    const toMatch = options?.searchMatchIds?.has(edge.toStageId) ?? false;
+
+    let edgeSearchState: "normal" | "matched" | "partial" | "dimmed" = "normal";
+    if (isSearchActive) {
+      if (fromMatch && toMatch) edgeSearchState = "matched";
+      else if (fromMatch || toMatch) edgeSearchState = "partial";
+      else edgeSearchState = "dimmed";
+    }
+
     return {
       id: edge.id,
       source: edge.fromStageId,
@@ -370,7 +428,7 @@ function canvasEdgesToRfEdges(
       targetHandle: edge.toHandle,
       type: "labeledEdge",
       selected: edge.id === selectedEdgeId,
-      data: { label: edge.label, color: edge.color, lineType },
+      data: { label: edge.label, color: edge.color, lineType, edgeSearchState },
       markerEnd: {
         type: MarkerType.ArrowClosed,
         width: 14,
@@ -400,6 +458,8 @@ function FlowCanvasInner({
   edges: canvasEdges,
   selectedStageId,
   selectedEdgeId,
+  searchQuery,
+  searchMatchIds,
   edgeLineStyle = "smoothstep",
   hideIcons,
   hideProperties,
@@ -411,7 +471,11 @@ function FlowCanvasInner({
   onEdgeDeleted,
 }: FlowCanvasProps) {
   const { fitView } = useReactFlow();
-  const viewOpts = useMemo(() => ({ hideIcons, hideProperties, compactMode }), [hideIcons, hideProperties, compactMode]);
+  const viewOpts = useMemo(
+    () => ({ hideIcons, hideProperties, compactMode, searchQuery, searchMatchIds }),
+    [hideIcons, hideProperties, compactMode, searchQuery, searchMatchIds],
+  );
+  const isSearchActive = Boolean(searchQuery?.trim());
 
   // ── Derive initial positions ───────────────────────────────────────────────
   // If every stage already has x/y, use those. Otherwise auto-layout.
@@ -430,7 +494,7 @@ function FlowCanvasInner({
     stagesToRfNodes(stages, initialPositions, selectedStageId, viewOpts),
   );
   const [rfEdges, setRfEdges, onRfEdgesChange] = useEdgesState(
-    canvasEdgesToRfEdges(canvasEdges, selectedEdgeId, edgeLineStyle),
+    canvasEdgesToRfEdges(canvasEdges, selectedEdgeId, edgeLineStyle, { isSearchActive, searchMatchIds }),
   );
 
   // ── Sync external changes → React Flow state ──────────────────────────────
@@ -500,12 +564,12 @@ function FlowCanvasInner({
 
     if (edgesChanged) {
       lastEdgesRef.current = canvasEdges;
-      setRfEdges(canvasEdgesToRfEdges(canvasEdges, selectedEdgeId, edgeLineStyle));
+      setRfEdges(canvasEdgesToRfEdges(canvasEdges, selectedEdgeId, edgeLineStyle, { isSearchActive, searchMatchIds }));
     } else {
-      setRfEdges(canvasEdgesToRfEdges(canvasEdges, selectedEdgeId, edgeLineStyle));
+      setRfEdges(canvasEdgesToRfEdges(canvasEdges, selectedEdgeId, edgeLineStyle, { isSearchActive, searchMatchIds }));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stages, canvasEdges, selectedStageId, selectedEdgeId, edgeLineStyle, hideIcons, hideProperties, compactMode]);
+  }, [stages, canvasEdges, selectedStageId, selectedEdgeId, edgeLineStyle, hideIcons, hideProperties, compactMode, searchQuery, searchMatchIds]);
 
   // ── Node drag end — persist positions ─────────────────────────────────────
   const handleNodesChange: OnNodesChange = useCallback(
