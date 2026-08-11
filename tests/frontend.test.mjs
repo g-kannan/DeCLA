@@ -31,6 +31,13 @@ test("frontend exposes a process canvas with local editing controls", async () =
   assert.match(comparison, /PROPERTY AGGREGATES/);
   assert.match(comparison, /STAGE DIFF/);
   assert.match(comparison, /BASELINE ENVIRONMENT \/ VERSION/);
+  assert.match(canvas, /Clear canvas/);
+  assert.match(canvas, /clearCanvasOnly/);
+  assert.doesNotMatch(canvas, /<div className="project-properties-title">/);
+  assert.match(canvas, /className="project-properties-strip"/);
+  assert.match(canvas, /handleAddCustomTag/);
+  assert.match(canvas, /add-custom-tag-btn/);
+  assert.match(canvas, /custom-tag-input/);
   assert.match(shell, /\/canvas/);
   assert.match(shell, /\/log/);
   assert.match(shell, /\/comparison/);

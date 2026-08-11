@@ -682,7 +682,15 @@ export default function DecisionCanvasPage() {
   const [hideProperties, setHideProperties] = useState(false);
   const [compactMode, setCompactMode] = useState(false);
   const [versionTags, setVersionTags] = useState<string[]>([]);
+  const [customTags, setCustomTags] = useState<string[]>([]);
+  const [showCustomTagInput, setShowCustomTagInput] = useState(false);
+  const [customTagInput, setCustomTagInput] = useState("");
   const importInputRef = useRef<HTMLInputElement>(null);
+
+  const allTagOptions = useMemo(() => {
+    const combined = new Set([...versionTagOptions, ...customTags, ...versionTags]);
+    return Array.from(combined);
+  }, [customTags, versionTags]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -936,7 +944,20 @@ export default function DecisionCanvasPage() {
   }
 
   function toggleVersionTag(tag: string) {
-    setVersionTags((current) => current.includes(tag) ? current.filter((item) => item !== tag) : [...current, tag]);
+    setVersionTags((current) => (current.includes(tag) ? [] : [tag]));
+  }
+
+  function handleAddCustomTag(event?: React.FormEvent) {
+    if (event) event.preventDefault();
+    const trimmed = customTagInput.trim();
+    if (!trimmed) return;
+    if (!versionTagOptions.includes(trimmed) && !customTags.includes(trimmed)) {
+      setCustomTags((current) => [...current, trimmed]);
+    }
+    setVersionTags([trimmed]);
+    setCustomTagInput("");
+    setShowCustomTagInput(false);
+    setMessage(`Version tag "${trimmed}" selected`);
   }
 
   function exportFileName(extension: string) {
@@ -1279,7 +1300,7 @@ function getEdgeSvgPath(
       setBudgetCurrency("USD");
       setProjectSla("24");
       setProjectSlaUnit("hours");
-      setVersionTags(["Current", "Approved"]);
+      setVersionTags(["Approved"]);
       setMessage("Customer return request example loaded");
     } else {
       setStages(seedStages);
@@ -1293,12 +1314,23 @@ function getEdgeSvgPath(
       setBudgetCurrency("USD");
       setProjectSla("30");
       setProjectSlaUnit("days");
-      setVersionTags(["Proposed", "Under review"]);
+      setVersionTags(["Proposed"]);
       setMessage("AI loan underwriting example loaded");
     }
   }
 
-  function clearCanvas() {
+  function clearCanvasOnly() {
+    if (!stages.length && !edges.length) return;
+    if (window.confirm("Clear canvas elements (stages and connections)? Project properties will be preserved.")) {
+      setStages([]);
+      setEdges([]);
+      setSelectedId(null);
+      setSelectedEdgeId(null);
+      setMessage("Canvas cleared");
+    }
+  }
+
+  function clearWorkspace() {
     const hasWorkspaceContent = Boolean(processName || projectStatus !== "draft" || environment !== "development" || goLiveDate || projectBudget || projectSla || versionTags.length || stages.length || versions.length);
     if (!hasWorkspaceContent || window.confirm("Clear this entire decision workspace, including saved versions?")) {
       setStages([]);
@@ -1331,18 +1363,31 @@ function getEdgeSvgPath(
         <header className="process-heading">
           <div>
             <div className="process-title-row"><input className="process-title-input" value={processName} onChange={(event) => setProcessName(event.target.value)} placeholder="Untitled decision canvas" aria-label="Decision canvas name" />{versions[0] && <span className="version-mini">v{versions[0].version}</span>}</div>
-            <div className="version-tag-bar"><span>VERSION TAGS <em>Optional</em></span><div>{versionTagOptions.map((tag) => <button key={tag} className={versionTags.includes(tag) ? "selected" : ""} onClick={() => toggleVersionTag(tag)}>{tag}</button>)}</div></div>
+            <div className="version-tag-bar">
+              <span>VERSION TAG <em>Optional</em></span>
+              <div>
+                {allTagOptions.map((tag) => <button key={tag} type="button" className={versionTags.includes(tag) ? "selected" : ""} onClick={() => toggleVersionTag(tag)}>{tag}</button>)}
+                {!showCustomTagInput ? (
+                  <button type="button" className="add-custom-tag-btn" onClick={() => setShowCustomTagInput(true)}>+ Tag</button>
+                ) : (
+                  <form className="custom-tag-form" onSubmit={handleAddCustomTag}>
+                    <input className="custom-tag-input" value={customTagInput} onChange={(event) => setCustomTagInput(event.target.value)} placeholder="Custom tag..." autoFocus onKeyDown={(event) => { if (event.key === "Escape") { setShowCustomTagInput(false); setCustomTagInput(""); } }} />
+                    <button type="submit" className="custom-tag-save">Add</button>
+                    <button type="button" className="custom-tag-cancel" onClick={() => { setShowCustomTagInput(false); setCustomTagInput(""); }}>×</button>
+                  </form>
+                )}
+              </div>
+            </div>
           </div>
           <div className="process-heading-actions">
             <div className="header-status-group"><label className={`project-status-control header-project-status ${projectStatus}`}><span>PROJECT STATUS</span><SearchableSelect value={projectStatus} options={statusOptions} onChange={(value) => setProjectStatus(value as CanvasStatus)} ariaLabel="Project status" /></label></div>
             <div className="export-menu-wrap"><button className="secondary-button" onClick={() => setShowExamplesMenu((open) => !open)}>Examples <span className="button-caret">⌄</span></button>{showExamplesMenu && <div className="floating-menu export-menu"><small>LOAD EXAMPLE WORKFLOW</small><button onClick={() => { loadExample("return-request"); setShowExamplesMenu(false); }}>Customer return request</button><button onClick={() => { loadExample("mortgage"); setShowExamplesMenu(false); }}>AI loan underwriting</button></div>}</div>
             <button className="secondary-button" onClick={() => setMessage("Share link copied to clipboard")}>Share</button>
-            <input ref={importInputRef} className="hidden-file-input" type="file" accept=".decla" onChange={handleImport} /><button className="secondary-button" onClick={() => importInputRef.current?.click()}>Import file</button><button className="secondary-button" onClick={saveDraft}>Save version</button><button className="primary-button" onClick={saveDeclaFile}>Save to File</button><div className="export-menu-wrap"><button className="secondary-button" onClick={() => setShowExportMenu((open) => !open)}>Export <span className="button-caret">⌄</span></button>{showExportMenu && <div className="floating-menu export-menu"><small>EXPORT CANVAS</small><button onClick={exportSvg}>SVG image <span>.svg</span></button><button onClick={exportPng}>PNG image <span>.png</span></button></div>}</div><button className="clear-canvas-button" onClick={clearCanvas} disabled={!Boolean(processName || projectStatus !== "draft" || environment !== "development" || goLiveDate || projectBudget || projectSla || versionTags.length || stages.length || versions.length)}>Clear workspace</button>
+            <input ref={importInputRef} className="hidden-file-input" type="file" accept=".decla" onChange={handleImport} /><button className="secondary-button" onClick={() => importInputRef.current?.click()}>Import file</button><button className="secondary-button" onClick={saveDraft}>Save version</button><button className="primary-button" onClick={saveDeclaFile}>Save to File</button><div className="export-menu-wrap"><button className="secondary-button" onClick={() => setShowExportMenu((open) => !open)}>Export <span className="button-caret">⌄</span></button>{showExportMenu && <div className="floating-menu export-menu"><small>EXPORT CANVAS</small><button onClick={exportSvg}>SVG image <span>.svg</span></button><button onClick={exportPng}>PNG image <span>.png</span></button></div>}</div><button className="clear-canvas-button" onClick={clearWorkspace} disabled={!Boolean(processName || projectStatus !== "draft" || environment !== "development" || goLiveDate || projectBudget || projectSla || versionTags.length || stages.length || versions.length)}>Clear workspace</button>
           </div>
         </header>
 
         <section className="project-properties-strip" aria-label="Project properties">
-          <div className="project-properties-title"><span>PROJECT</span><strong>PROPERTIES</strong></div>
           <div className="project-property-metric editable-metric">
             <span>BUDGET</span>
             <div className="prop-control-group">
@@ -1438,6 +1483,7 @@ function getEdgeSvgPath(
                     </div>
                   )}
                 </div>
+                <button className="secondary-button" onClick={clearCanvasOnly} disabled={!stages.length && !edges.length}>Clear canvas</button>
               </div>
               <div className="canvas-toolbar-group canvas-tools-right">
                 <span className="canvas-stat"><strong>{stages.length}</strong> stages</span>
@@ -1453,11 +1499,9 @@ function getEdgeSvgPath(
                   <span className="blank-canvas-mark">＋</span>
                   <span className="process-eyebrow">BLANK PROCESS CANVAS</span>
                   <h2>Start mapping your process</h2>
-                  <p>Add a stage to begin, or explore a pre-built example process.</p>
-                  <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", justifyContent: "center" }}>
-                    <button className="primary-button" onClick={() => loadExample("return-request")}>Load Return Request example</button>
-                    <button className="secondary-button" onClick={() => loadExample("mortgage")}>Load Loan Underwriting example</button>
-                    <button className="secondary-button" onClick={() => setShowAddMenu(true)}>＋ Add first stage</button>
+                  <p>Add a stage to begin building your decision workflow.</p>
+                  <div>
+                    <button className="primary-button" onClick={() => setShowAddMenu(true)}>＋ Add first stage</button>
                   </div>
                 </div>
               ) : (
