@@ -21,6 +21,27 @@ export type CanvasStage = {
   iconKey: CanvasStageIconKey;
   color: string;
   properties: StageProperty[];
+  /** Canvas x position (set by React Flow / auto-layout) */
+  x?: number;
+  /** Canvas y position (set by React Flow / auto-layout) */
+  y?: number;
+};
+
+/**
+ * A directed connection between two stages.
+ * Phase 1: labeled edges between any two stages.
+ * Phase 2: multiple outgoing edges from Decision nodes (branching).
+ */
+export type CanvasEdge = {
+  id: string;
+  fromStageId: string;
+  toStageId: string;
+  /** Human-readable label shown on the edge, e.g. "Yes", "No", "Damaged product" */
+  label?: string;
+  /** Edge stroke color — overrides default when set */
+  color?: string;
+  /** Optional machine-readable condition expression */
+  condition?: string;
 };
 
 export type CanvasDraft = {
@@ -33,6 +54,8 @@ export type CanvasDraft = {
   sla: string;
   slaUnit: string;
   stages: CanvasStage[];
+  /** Directed edges between stages. Empty for legacy canvases — defaults to linear chain. */
+  edges: CanvasEdge[];
 };
 
 export type CanvasStatus = "draft" | "under-review" | "approved" | "archived";
@@ -46,8 +69,9 @@ export type CanvasVersion = CanvasDraft & {
   tags: string[];
 };
 
-export const CANVAS_STORAGE_KEY = "decla-process-canvas-v3";
-export const VERSIONS_STORAGE_KEY = "decla-process-versions-v1";
+/** Bumped to v4 because edges[] is a structural change to the draft format. */
+export const CANVAS_STORAGE_KEY = "decla-process-canvas-v4";
+export const VERSIONS_STORAGE_KEY = "decla-process-versions-v2";
 
 export function normalizeCanvasStages(stages: CanvasStage[]) {
   return stages.map((stage) =>
@@ -55,6 +79,20 @@ export function normalizeCanvasStages(stages: CanvasStage[]) {
       ? { ...stage, iconKey: "decision" as const }
       : stage,
   );
+}
+
+/**
+ * Migrate a legacy canvas that has no edges by building a linear chain
+ * connecting each stage to the next in order.
+ */
+export function normalizeCanvasEdges(stages: CanvasStage[], edges?: CanvasEdge[]): CanvasEdge[] {
+  if (Array.isArray(edges) && edges.length > 0) return edges;
+  // Legacy: synthesise a linear chain so the graph is still connected.
+  return stages.slice(0, -1).map((stage, index) => ({
+    id: `edge-legacy-${index}`,
+    fromStageId: stage.id,
+    toStageId: stages[index + 1].id,
+  }));
 }
 
 export function readCanvasVersions() {
@@ -68,6 +106,7 @@ export function readCanvasVersions() {
       goLiveDate: version.goLiveDate ?? "",
       tags: Array.isArray(version.tags) ? version.tags : [],
       stages: normalizeCanvasStages(version.stages ?? []),
+      edges: normalizeCanvasEdges(version.stages ?? [], version.edges),
     }));
   } catch {
     return [] as CanvasVersion[];

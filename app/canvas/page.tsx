@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties } from "react";
 import { AppShell } from "@/app/components/app-shell";
-import { CANVAS_STORAGE_KEY, nextCanvasVersion, normalizeCanvasStages, readCanvasVersions, writeCanvasDraft, writeCanvasVersions, type CanvasEnvironment, type CanvasStage, type CanvasStageIconKey, type CanvasStatus, type CanvasVersion, type PropertyKind, type StageProperty } from "@/lib/local-canvas";
+import { CANVAS_STORAGE_KEY, nextCanvasVersion, normalizeCanvasEdges, normalizeCanvasStages, readCanvasVersions, writeCanvasDraft, writeCanvasVersions, type CanvasEdge, type CanvasEnvironment, type CanvasStage, type CanvasStageIconKey, type CanvasStatus, type CanvasVersion, type PropertyKind, type StageProperty } from "@/lib/local-canvas";
 import { StageIcon } from "@/lib/stage-icons";
+import { FlowCanvas } from "./flow-canvas";
 
 type StageKind = Exclude<CanvasStageIconKey, "analytics">;
 
@@ -382,21 +383,17 @@ export default function DecisionCanvasPage() {
   const [projectSla, setProjectSla] = useState("");
   const [projectSlaUnit, setProjectSlaUnit] = useState("days");
   const [stages, setStages] = useState<CanvasStage[]>([]);
+  const [edges, setEdges] = useState<CanvasEdge[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [showPropertyMenu, setShowPropertyMenu] = useState(false);
-  const [zoom, setZoom] = useState(100);
-  const [activeTool, setActiveTool] = useState<"select" | "pan">("select");
-  const [spacePanActive, setSpacePanActive] = useState(false);
-  const [isPanning, setIsPanning] = useState(false);
   const [message, setMessage] = useState("");
   const [hydrated, setHydrated] = useState(false);
   const [versions, setVersions] = useState<CanvasVersion[]>([]);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [versionTags, setVersionTags] = useState<string[]>([]);
   const importInputRef = useRef<HTMLInputElement>(null);
-  const viewportRef = useRef<HTMLDivElement>(null);
-  const panStartRef = useRef<{ pointerId: number; x: number; y: number; scrollLeft: number; scrollTop: number } | null>(null);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -406,7 +403,7 @@ export default function DecisionCanvasPage() {
       setVersionTags(localVersions[0]?.tags ?? []);
       if (saved) {
         try {
-          const draft = JSON.parse(saved) as { name?: string; status?: CanvasStatus; environment?: CanvasEnvironment; goLiveDate?: string; budget?: string; budgetCurrency?: string; sla?: string; slaUnit?: string; stages?: CanvasStage[] };
+          const draft = JSON.parse(saved) as { name?: string; status?: CanvasStatus; environment?: CanvasEnvironment; goLiveDate?: string; budget?: string; budgetCurrency?: string; sla?: string; slaUnit?: string; stages?: CanvasStage[]; edges?: CanvasEdge[] };
           if (draft.name) setProcessName(draft.name);
           if (draft.status && statusOptions.some((option) => option.value === draft.status)) setProjectStatus(draft.status);
           if (draft.environment && environmentOptions.some((option) => option.value === draft.environment)) setEnvironment(draft.environment);
@@ -418,7 +415,8 @@ export default function DecisionCanvasPage() {
           if (draft.stages?.length) {
             const normalizedStages = normalizeCanvasStages(draft.stages);
             setStages(normalizedStages);
-            setSelectedId(normalizedStages[0].id);
+            setSelectedId(null);
+            setEdges(normalizeCanvasEdges(normalizedStages, draft.edges));
           }
         } catch {
           // A stale local draft should never prevent the canvas from opening.
@@ -431,49 +429,17 @@ export default function DecisionCanvasPage() {
 
   useEffect(() => {
     if (!hydrated) return;
-    writeCanvasDraft({ name: processName, status: projectStatus, environment, goLiveDate, budget: projectBudget, budgetCurrency, sla: projectSla, slaUnit: projectSlaUnit, stages });
-  }, [budgetCurrency, environment, goLiveDate, hydrated, processName, projectBudget, projectSla, projectSlaUnit, projectStatus, stages]);
-
-  useEffect(() => {
-    function isEditableTarget(target: EventTarget | null) {
-      return target instanceof HTMLElement && (target.isContentEditable || ["INPUT", "SELECT", "TEXTAREA"].includes(target.tagName));
-    }
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.code !== "Space" || isEditableTarget(event.target)) return;
-      event.preventDefault();
-      setSpacePanActive(true);
-    }
-
-    function handleKeyUp(event: KeyboardEvent) {
-      if (event.code !== "Space") return;
-      setSpacePanActive(false);
-    }
-
-    function handleWindowBlur() {
-      panStartRef.current = null;
-      setSpacePanActive(false);
-      setIsPanning(false);
-    }
-
-    window.addEventListener("keydown", handleKeyDown);
-    window.addEventListener("keyup", handleKeyUp);
-    window.addEventListener("blur", handleWindowBlur);
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("keyup", handleKeyUp);
-      window.removeEventListener("blur", handleWindowBlur);
-    };
-  }, []);
+    writeCanvasDraft({ name: processName, status: projectStatus, environment, goLiveDate, budget: projectBudget, budgetCurrency, sla: projectSla, slaUnit: projectSlaUnit, stages, edges });
+  }, [budgetCurrency, edges, environment, goLiveDate, hydrated, processName, projectBudget, projectSla, projectSlaUnit, projectStatus, stages]);
 
   const selectedStage = stages.find((stage) => stage.id === selectedId) ?? null;
+  const selectedEdge = edges.find((edge) => edge.id === selectedEdgeId) ?? null;
   const totalProperties = useMemo(() => stages.reduce((total, stage) => total + stage.properties.length, 0), [stages]);
   const totalCost = useMemo(() => stages.reduce((total, stage) => total + stage.properties.filter((property) => propertyKind(property) === "cost").reduce((sum, property) => sum + numericValue(property.value), 0), 0), [stages]);
   const totalLatencyMinutes = useMemo(() => stages.reduce((total, stage) => total + stage.properties.filter((property) => propertyKind(property) === "duration").reduce((sum, property) => sum + durationInMinutes(property), 0), 0), [stages]);
   const budgetTotal = numericValue(projectBudget);
   const slaTargetMinutes = targetInMinutes(projectSla, projectSlaUnit);
   const pendingDays = daysUntil(goLiveDate);
-  const panEnabled = activeTool === "pan" || spacePanActive || isPanning;
 
   function updateStage(patch: Partial<CanvasStage>) {
     if (!selectedStage) return;
@@ -504,9 +470,33 @@ export default function DecisionCanvasPage() {
   function removeSelected() {
     if (!selectedStage) return;
     const next = stages.filter((stage) => stage.id !== selectedStage.id);
+    // Remove any edges that referenced the deleted stage
+    setEdges((prev) => prev.filter((e) => e.fromStageId !== selectedStage.id && e.toStageId !== selectedStage.id));
     setStages(next);
     setSelectedId(next[Math.max(0, stages.findIndex((stage) => stage.id === selectedStage.id) - 1)]?.id ?? null);
     setMessage("Stage removed");
+  }
+
+  // ── Edge handlers ──────────────────────────────────────────────────────────
+
+  function handleEdgeCreated(edge: CanvasEdge) {
+    setEdges((prev) => [...prev, edge]);
+  }
+
+  function handleEdgeDeleted(id: string) {
+    setEdges((prev) => prev.filter((e) => e.id !== id));
+    if (selectedEdgeId === id) setSelectedEdgeId(null);
+  }
+
+  function updateEdge(id: string, patch: Partial<CanvasEdge>) {
+    setEdges((prev) => prev.map((e) => e.id === id ? { ...e, ...patch } : e));
+  }
+
+  function handleStagePositionsChange(updates: { id: string; x: number; y: number }[]) {
+    setStages((prev) => prev.map((s) => {
+      const update = updates.find((u) => u.id === s.id);
+      return update ? { ...s, x: update.x, y: update.y } : s;
+    }));
   }
 
   function addProperty(definition?: (typeof propertyPresets)[number]) {
@@ -542,7 +532,7 @@ export default function DecisionCanvasPage() {
   }
 
   function recordVersion(summary: string) {
-    const draft = { name: processName.trim(), status: projectStatus, environment, goLiveDate, budget: projectBudget, budgetCurrency, sla: projectSla, slaUnit: projectSlaUnit, stages };
+    const draft = { name: processName.trim(), status: projectStatus, environment, goLiveDate, budget: projectBudget, budgetCurrency, sla: projectSla, slaUnit: projectSlaUnit, stages, edges };
     const next = nextCanvasVersion(versions, draft, summary, versionTags);
     const updated = [next, ...versions];
     writeCanvasDraft(draft);
@@ -581,7 +571,7 @@ export default function DecisionCanvasPage() {
       return;
     }
     try {
-      const payload = JSON.parse(await file.text()) as { format?: string; canvas?: { name?: string; status?: CanvasStatus; environment?: CanvasEnvironment; goLiveDate?: string; budget?: string; budgetCurrency?: string; sla?: string; slaUnit?: string; stages?: CanvasStage[] }; versions?: CanvasVersion[] };
+      const payload = JSON.parse(await file.text()) as { format?: string; canvas?: { name?: string; status?: CanvasStatus; environment?: CanvasEnvironment; goLiveDate?: string; budget?: string; budgetCurrency?: string; sla?: string; slaUnit?: string; stages?: CanvasStage[]; edges?: CanvasEdge[] }; versions?: CanvasVersion[] };
       const draft = payload.canvas;
       if (payload.format !== "decla" || !draft || !Array.isArray(draft.stages)) throw new Error("Invalid .decla file");
       const importedStatus = draft.status && statusOptions.some((option) => option.value === draft.status) ? draft.status : "draft";
@@ -594,12 +584,14 @@ export default function DecisionCanvasPage() {
       setProjectSla(draft.sla ?? "");
       setProjectSlaUnit(draft.slaUnit ?? "days");
       const normalizedStages = normalizeCanvasStages(draft.stages);
+      const normalizedEdges = normalizeCanvasEdges(normalizedStages, draft.edges);
       setStages(normalizedStages);
-      setSelectedId(normalizedStages[0]?.id ?? null);
-      const importedVersions = Array.isArray(payload.versions) ? payload.versions.map((version) => ({ ...version, environment: version.environment ?? "development" as const, goLiveDate: version.goLiveDate ?? "", tags: Array.isArray(version.tags) ? version.tags : [], stages: normalizeCanvasStages(version.stages ?? []) })) : [];
+      setSelectedId(null);
+      setEdges(normalizedEdges);
+      const importedVersions = Array.isArray(payload.versions) ? payload.versions.map((version) => ({ ...version, environment: version.environment ?? "development" as const, goLiveDate: version.goLiveDate ?? "", tags: Array.isArray(version.tags) ? version.tags : [], stages: normalizeCanvasStages(version.stages ?? []), edges: normalizeCanvasEdges(version.stages ?? [], version.edges) })) : [];
       setVersions(importedVersions);
       setVersionTags(importedVersions[0]?.tags ?? []);
-      writeCanvasDraft({ name: draft.name ?? "", status: importedStatus, environment: draft.environment ?? "development", goLiveDate: draft.goLiveDate ?? "", budget: draft.budget ?? "", budgetCurrency: draft.budgetCurrency ?? "USD", sla: draft.sla ?? "", slaUnit: draft.slaUnit ?? "days", stages: normalizedStages });
+      writeCanvasDraft({ name: draft.name ?? "", status: importedStatus, environment: draft.environment ?? "development", goLiveDate: draft.goLiveDate ?? "", budget: draft.budget ?? "", budgetCurrency: draft.budgetCurrency ?? "USD", sla: draft.sla ?? "", slaUnit: draft.slaUnit ?? "days", stages: normalizedStages, edges: normalizedEdges });
       writeCanvasVersions(importedVersions);
       setMessage(".decla file imported");
     } catch {
@@ -733,7 +725,9 @@ export default function DecisionCanvasPage() {
 
   function loadExample() {
     setStages(seedStages);
-    setSelectedId("aus-recommendation");
+    setSelectedId(null);
+    // Build a linear chain for the example (no pre-defined custom edges)
+    setEdges(normalizeCanvasEdges(seedStages, []));
     setProcessName("AI loan underwriting process");
     setProjectStatus("under-review");
     setEnvironment("staging");
@@ -749,7 +743,9 @@ export default function DecisionCanvasPage() {
     const hasWorkspaceContent = Boolean(processName || projectStatus !== "draft" || environment !== "development" || goLiveDate || projectBudget || projectSla || versionTags.length || stages.length || versions.length);
     if (!hasWorkspaceContent || window.confirm("Clear this entire decision workspace, including saved versions?")) {
       setStages([]);
+      setEdges([]);
       setSelectedId(null);
+      setSelectedEdgeId(null);
       setProcessName("");
       setProjectStatus("draft");
       setEnvironment("development");
@@ -767,29 +763,7 @@ export default function DecisionCanvasPage() {
     }
   }
 
-  function beginPan(event: ReactPointerEvent<HTMLDivElement>) {
-    if (!panEnabled || event.button !== 0 || !viewportRef.current) return;
-    const viewport = viewportRef.current;
-    panStartRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, scrollLeft: viewport.scrollLeft, scrollTop: viewport.scrollTop };
-    viewport.setPointerCapture(event.pointerId);
-    setIsPanning(true);
-    event.preventDefault();
-  }
-
-  function movePan(event: ReactPointerEvent<HTMLDivElement>) {
-    const start = panStartRef.current;
-    const viewport = viewportRef.current;
-    if (!start || !viewport || start.pointerId !== event.pointerId) return;
-    viewport.scrollLeft = start.scrollLeft - (event.clientX - start.x);
-    viewport.scrollTop = start.scrollTop - (event.clientY - start.y);
-  }
-
-  function endPan(event: ReactPointerEvent<HTMLDivElement>) {
-    if (panStartRef.current?.pointerId !== event.pointerId) return;
-    if (viewportRef.current?.hasPointerCapture(event.pointerId)) viewportRef.current.releasePointerCapture(event.pointerId);
-    panStartRef.current = null;
-    setIsPanning(false);
-  }
+  // Pan is now handled natively by React Flow.
 
   return (
     <AppShell>
@@ -843,6 +817,27 @@ export default function DecisionCanvasPage() {
           </div>
           <div className="project-property-metric">
             <span>SCOPE</span>
+          </div>
+          <div className="project-property-metric editable-metric">
+            <span>ENVIRONMENT</span>
+            <div className="prop-control-group">
+              <SearchableSelect value={environment} options={environmentOptions} onChange={(value) => setEnvironment(value as CanvasEnvironment)} ariaLabel="Project environment" className={`prop-select-env ${environment}`} />
+            </div>
+          </div>
+          <div className="project-property-metric editable-metric">
+            <span>GO-LIVE TARGET</span>
+            <div className="prop-control-group">
+              <input type="date" value={goLiveDate} onChange={(event) => setGoLiveDate(event.target.value)} aria-label="Go-live target date" className="prop-input-date" />
+            </div>
+            <small>{goLiveDate ? formatShortDate(goLiveDate) : "Choose a target date"}</small>
+          </div>
+          <div className="project-property-metric days-pending">
+            <span>DAYS PENDING</span>
+            <strong>{pendingDays === null ? "—" : pendingDays > 0 ? pendingDays : 0}</strong>
+            <small>{pendingDays === null ? "No target date" : pendingDays > 0 ? "calendar days remaining" : pendingDays === 0 ? "go live is today" : `${Math.abs(pendingDays)} days past target`}</small>
+          </div>
+          <div className="project-property-metric">
+            <span>SCOPE</span>
             <strong>{stages.length}<span className="prop-cap"> stages</span></strong>
             <small>{totalProperties} total properties</small>
           </div>
@@ -854,48 +849,49 @@ export default function DecisionCanvasPage() {
           <section className="process-canvas-panel">
             <div className="canvas-toolbar">
               <div className="canvas-toolbar-group">
-                <button className={`tool-button ${activeTool === "select" && !spacePanActive ? "active" : ""}`} onClick={() => setActiveTool("select")} aria-label="Select tool" aria-pressed={activeTool === "select" && !spacePanActive}>↖ <span>Select</span></button>
-                <button className={`tool-button ${panEnabled ? "active" : ""}`} onClick={() => setActiveTool("pan")} aria-label="Pan tool" aria-pressed={panEnabled}>✋ <span>Pan</span></button>
                 <span className="toolbar-divider" />
                 <div className="add-stage-wrap">
                   <button className="add-stage-button" onClick={() => setShowAddMenu((open) => !open)}>＋ Add stage</button>
                   {showAddMenu && <div className="floating-menu stage-menu">
                     <small>ADD A WORKFLOW STAGE</small>
                     {stageTypes.map((kind) => <button key={kind.key} onClick={() => addStage(kind)}><span className="menu-color" style={{ background: kind.color }} />{kind.label}<span>+</span></button>)}
-                    </div>}
-                  </div>
+                  </div>}
                 </div>
+              </div>
               <div className="canvas-toolbar-group canvas-tools-right">
                 <span className="canvas-stat"><strong>{stages.length}</strong> stages</span>
+                <span className="canvas-stat"><strong>{edges.length}</strong> connections</span>
                 <span className="canvas-stat"><strong>{totalProperties}</strong> properties</span>
-                <span className="toolbar-divider" />
-                <button className="zoom-button" onClick={() => setZoom((value) => Math.max(70, value - 10))}>−</button>
-                <span className="zoom-value">{zoom}%</span>
-                <button className="zoom-button" onClick={() => setZoom((value) => Math.min(130, value + 10))}>+</button>
-                <button className="fit-button" onClick={() => { setZoom(100); viewportRef.current?.scrollTo({ left: 0, top: 0, behavior: "smooth" }); }}>Fit</button>
+                <span className="canvas-hint">Drag from a node handle to connect · Click an edge to label it</span>
               </div>
             </div>
 
-            <div ref={viewportRef} className={`canvas-viewport ${panEnabled ? "pan-mode" : ""} ${isPanning ? "is-panning" : ""}`} onPointerDown={beginPan} onPointerMove={movePan} onPointerUp={endPan} onPointerCancel={endPan}>
-              <div className="canvas-surface" style={{ "--canvas-zoom": zoom / 100 } as CSSProperties}>
-                  {stages.length === 0 ? <div className="blank-canvas-state"><span className="blank-canvas-mark">＋</span><span className="process-eyebrow">BLANK PROCESS CANVAS</span><h2>Start mapping your process</h2><p>Add a stage to begin, or explore the AI loan underwriting example.</p><div><button className="primary-button" onClick={() => setShowAddMenu(true)}>＋ Add first stage</button><button className="secondary-button" onClick={loadExample}>Load example</button></div></div> : <>
-                  <div className="canvas-label"><span>TRIGGER</span><i /> PROCESS FLOW <i /><span>OUTCOME</span></div>
-                  <div className="flow-track">
-                    {stages.map((stage, index) => <div className="flow-step" key={stage.id}>
-                    <button className={`flow-node ${selectedId === stage.id ? "selected" : ""}`} style={{ "--node-accent": stage.color } as CSSProperties} onClick={() => setSelectedId(stage.id)} aria-label={`Select ${stage.name}`}>
-                      <span className="flow-node-top"><small>0{index + 1}</small><span className="node-more">•••</span></span>
-                      <span className="flow-node-icon"><StageIcon stage={{ label: stage.name, platform: stage.platform, stage_type_key: stage.iconKey, category: stage.type }} decorative={false} /></span>
-                      <strong>{stage.name}</strong>
-                      <span className="flow-node-meta"><span>{stage.type}</span><span>{stage.platform}</span></span>
-                      {stage.properties.length > 0 && <span className="node-property-count">{stage.properties.length} {stage.properties.length === 1 ? "property" : "properties"}</span>}
-                    </button>
-                    {index < stages.length - 1 && <span className="flow-connector" aria-hidden="true"><i /></span>}
-                    </div>)}
-                    <button className="canvas-add-node" onClick={() => setShowAddMenu(true)}><span>＋</span><small>Add stage</small></button>
+            <div className="canvas-viewport rf-viewport">
+              {stages.length === 0 ? (
+                <div className="blank-canvas-state">
+                  <span className="blank-canvas-mark">＋</span>
+                  <span className="process-eyebrow">BLANK PROCESS CANVAS</span>
+                  <h2>Start mapping your process</h2>
+                  <p>Add a stage to begin, or explore the AI loan underwriting example.</p>
+                  <div>
+                    <button className="primary-button" onClick={() => setShowAddMenu(true)}>＋ Add first stage</button>
+                    <button className="secondary-button" onClick={loadExample}>Load example</button>
                   </div>
-                  <div className="canvas-hint"><span>Tip</span> Hold Space and drag to pan. Select any stage to edit its details.</div>
-                </>}
-              </div>
+                </div>
+              ) : (
+                <FlowCanvas
+                  stages={stages}
+                  edges={edges}
+                  selectedStageId={selectedId}
+                  selectedEdgeId={selectedEdgeId}
+                  onSelectStage={(id) => { setSelectedId(id); setSelectedEdgeId(null); }}
+                  onSelectEdge={(id) => { setSelectedEdgeId(id); setSelectedId(null); }}
+                  onStagePositionsChange={handleStagePositionsChange}
+                  onEdgeCreated={handleEdgeCreated}
+                  onEdgeDeleted={handleEdgeDeleted}
+                  onAddStageRequest={() => setShowAddMenu(true)}
+                />
+              )}
             </div>
 
             <div className="canvas-footer">
@@ -905,25 +901,75 @@ export default function DecisionCanvasPage() {
           </section>
 
           <aside className="inspector-panel">
-            {selectedStage ? <>
-              <div className="inspector-header"><div><span className="process-eyebrow">STAGE PROPERTIES</span><h2>Edit stage</h2></div><button className="icon-button" onClick={removeSelected} aria-label="Delete selected stage">⌫</button></div>
-              <div className="inspector-stage-banner" style={{ "--node-accent": selectedStage.color } as CSSProperties}><span className="inspector-icon"><StageIcon stage={{ label: selectedStage.name, platform: selectedStage.platform, stage_type_key: selectedStage.iconKey, category: selectedStage.type }} decorative={false} /></span><div><strong>{selectedStage.name}</strong><small>Stage {String(stages.findIndex((stage) => stage.id === selectedStage.id) + 1).padStart(2, "0")} of {stages.length}</small></div></div>
-
-              <div className="inspector-form">
-                <label><span>Name</span><input value={selectedStage.name} onChange={(event) => updateStage({ name: event.target.value })} placeholder="Name this stage" /></label>
-                <label><span>Type</span><SearchableSelect value={selectedStage.iconKey} options={stageTypes.map((type) => ({ value: type.key, label: type.label }))} onChange={(value) => changeType(value as StageKind)} ariaLabel="Stage type" /></label>
-                <label><span>Platform</span><SearchableSelect value={selectedStage.platform} options={platforms.map((platform) => ({ value: platform, label: platform }))} onChange={(value) => updateStage({ platform: value })} ariaLabel="Stage platform" /></label>
-              </div>
-
-              <div className="properties-section"><div className="properties-heading"><div><span className="process-eyebrow">CUSTOM DATA</span><strong>Properties</strong></div><div className="property-add-wrap"><button className="add-property-button" onClick={() => setShowPropertyMenu((open) => !open)}>＋ Add property</button>{showPropertyMenu && <div className="floating-menu property-menu"><small>CHOOSE A PROPERTY</small>{propertyPresets.filter((preset) => !selectedStage.properties.some((property) => propertyKind(property) === preset.kind)).map((preset) => <button key={preset.kind} onClick={() => addProperty(preset)}>{preset.label}<span>+</span></button>)}<button onClick={() => addProperty()}><em>＋</em> Custom property</button></div>}</div></div>
-                <p className="properties-help">Add the metrics your team uses to describe this stage.</p>
-                <div className="property-list">
-                  {selectedStage.properties.map((property) => { const kind = propertyKind(property); const numericKind = kind === "cost" || kind === "duration" || kind === "sla" || kind === "rows"; return <div className={`property-row property-${kind}`} key={property.id}><input value={property.name} onChange={(event) => updateProperty(property.id, { name: event.target.value })} aria-label="Property name" /><span>:</span><input className="property-value-input" type={numericKind ? "number" : "text"} min={numericKind ? "0" : undefined} step={kind === "cost" ? "1" : undefined} inputMode={numericKind ? "numeric" : undefined} value={property.value} onChange={(event) => updateProperty(property.id, { value: event.target.value })} placeholder={numericKind ? "0" : "Add value"} aria-label={`${property.name} value`} />{kind === "cost" && <SearchableSelect className="property-meta-select" value={property.currency ?? "USD"} options={currencies.map((currency) => ({ value: currency, label: currency }))} onChange={(value) => updateProperty(property.id, { currency: value })} ariaLabel={`${property.name} currency`} />}{(kind === "duration" || kind === "sla") && <SearchableSelect className="property-meta-select" value={property.unit ?? (kind === "sla" ? "days" : "hours")} options={durationUnits.map((unit) => ({ value: unit, label: unit }))} onChange={(value) => updateProperty(property.id, { unit: value })} ariaLabel={`${property.name} unit`} />}<button onClick={() => removeProperty(property.id)} aria-label={`Remove ${property.name} property`}>×</button></div>; })}
-                  {selectedStage.properties.length === 0 && <div className="properties-empty"><span>⌁</span><p>No custom properties yet.<br />Add duration, cost, rows, or anything useful.</p></div>}
+            {selectedStage ? (
+              <>
+                <div className="inspector-header"><div><span className="process-eyebrow">STAGE PROPERTIES</span><h2>Edit stage</h2></div><button className="icon-button" onClick={removeSelected} aria-label="Delete selected stage">⌫</button></div>
+                <div className="inspector-stage-banner" style={{ "--node-accent": selectedStage.color } as CSSProperties}><span className="inspector-icon"><StageIcon stage={{ label: selectedStage.name, platform: selectedStage.platform, stage_type_key: selectedStage.iconKey, category: selectedStage.type }} decorative={false} /></span><div><strong>{selectedStage.name}</strong><small>Stage {String(stages.findIndex((stage) => stage.id === selectedStage.id) + 1).padStart(2, "0")} of {stages.length}</small></div></div>
+                <div className="inspector-form">
+                  <label><span>Name</span><input value={selectedStage.name} onChange={(event) => updateStage({ name: event.target.value })} placeholder="Name this stage" /></label>
+                  <label><span>Type</span><SearchableSelect value={selectedStage.iconKey} options={stageTypes.map((type) => ({ value: type.key, label: type.label }))} onChange={(value) => changeType(value as StageKind)} ariaLabel="Stage type" /></label>
+                  <label><span>Platform</span><SearchableSelect value={selectedStage.platform} options={platforms.map((platform) => ({ value: platform, label: platform }))} onChange={(value) => updateStage({ platform: value })} ariaLabel="Stage platform" /></label>
                 </div>
+                <div className="properties-section"><div className="properties-heading"><div><span className="process-eyebrow">CUSTOM DATA</span><strong>Properties</strong></div><div className="property-add-wrap"><button className="add-property-button" onClick={() => setShowPropertyMenu((open) => !open)}>＋ Add property</button>{showPropertyMenu && <div className="floating-menu property-menu"><small>CHOOSE A PROPERTY</small>{propertyPresets.filter((preset) => !selectedStage.properties.some((property) => propertyKind(property) === preset.kind)).map((preset) => <button key={preset.kind} onClick={() => addProperty(preset)}>{preset.label}<span>+</span></button>)}<button onClick={() => addProperty()}><em>＋</em> Custom property</button></div>}</div></div>
+                  <p className="properties-help">Add the metrics your team uses to describe this stage.</p>
+                  <div className="property-list">
+                    {selectedStage.properties.map((property) => { const kind = propertyKind(property); const numericKind = kind === "cost" || kind === "duration" || kind === "sla" || kind === "rows"; return <div className={`property-row property-${kind}`} key={property.id}><input value={property.name} onChange={(event) => updateProperty(property.id, { name: event.target.value })} aria-label="Property name" /><span>:</span><input className="property-value-input" type={numericKind ? "number" : "text"} min={numericKind ? "0" : undefined} step={kind === "cost" ? "1" : undefined} inputMode={numericKind ? "numeric" : undefined} value={property.value} onChange={(event) => updateProperty(property.id, { value: event.target.value })} placeholder={numericKind ? "0" : "Add value"} aria-label={`${property.name} value`} />{kind === "cost" && <SearchableSelect className="property-meta-select" value={property.currency ?? "USD"} options={currencies.map((currency) => ({ value: currency, label: currency }))} onChange={(value) => updateProperty(property.id, { currency: value })} ariaLabel={`${property.name} currency`} />}{(kind === "duration" || kind === "sla") && <SearchableSelect className="property-meta-select" value={property.unit ?? (kind === "sla" ? "days" : "hours")} options={durationUnits.map((unit) => ({ value: unit, label: unit }))} onChange={(value) => updateProperty(property.id, { unit: value })} ariaLabel={`${property.name} unit`} />}<button onClick={() => removeProperty(property.id)} aria-label={`Remove ${property.name} property`}>×</button></div>; })}
+                    {selectedStage.properties.length === 0 && <div className="properties-empty"><span>⌁</span><p>No custom properties yet.<br />Add duration, cost, rows, or anything useful.</p></div>}
+                  </div>
+                </div>
+                <label className="notes-field"><span>Notes <em>Optional</em></span><textarea placeholder="Add context for your team..." rows={3} /></label>
+              </>
+            ) : selectedEdge ? (
+              <>
+                <div className="inspector-header">
+                  <div><span className="process-eyebrow">CONNECTION</span><h2>Edit edge</h2></div>
+                  <button className="icon-button" onClick={() => handleEdgeDeleted(selectedEdge.id)} aria-label="Delete selected edge">⌫</button>
+                </div>
+                <div className="edge-inspector-banner">
+                  <span className="edge-inspector-icon">→</span>
+                  <div>
+                    <strong>{stages.find((s) => s.id === selectedEdge.fromStageId)?.name ?? "Unknown"}</strong>
+                    <small>→ {stages.find((s) => s.id === selectedEdge.toStageId)?.name ?? "Unknown"}</small>
+                  </div>
+                </div>
+                <div className="inspector-form edge-inspector-form">
+                  <label>
+                    <span>Label <em style={{ fontStyle: "normal", color: "var(--muted)", fontWeight: 400 }}>Optional</em></span>
+                    <input value={selectedEdge.label ?? ""} onChange={(e) => updateEdge(selectedEdge.id, { label: e.target.value })} placeholder="e.g. Yes, No, Approved…" aria-label="Edge label" />
+                  </label>
+                  <label>
+                    <span>Path colour</span>
+                    <div className="edge-color-swatches">
+                      {([
+                        { label: "Default", value: undefined },
+                        { label: "Green", value: "#16a34a" },
+                        { label: "Red", value: "#dc2626" },
+                        { label: "Orange", value: "#f36a10" },
+                        { label: "Blue", value: "#2563eb" },
+                        { label: "Purple", value: "#7c3aed" },
+                      ] as { label: string; value: string | undefined }[]).map(({ label, value }) => (
+                        <button key={label} className={`edge-swatch${(selectedEdge.color ?? undefined) === value ? " selected" : ""}`} style={{ background: value ?? "var(--edge-default)" }} onClick={() => updateEdge(selectedEdge.id, { color: value })} aria-label={label} title={label} />
+                      ))}
+                    </div>
+                  </label>
+                  <label>
+                    <span>Condition <em style={{ fontStyle: "normal", color: "var(--muted)", fontWeight: 400 }}>Optional</em></span>
+                    <input value={selectedEdge.condition ?? ""} onChange={(e) => updateEdge(selectedEdge.id, { condition: e.target.value })} placeholder="e.g. score &gt; 0.9" aria-label="Edge condition" />
+                  </label>
+                </div>
+                <p className="properties-help" style={{ marginTop: 14 }}>
+                  Add a label to annotate the path (e.g. &quot;Yes&quot; / &quot;No&quot;).<br />
+                  Use a colour to visually distinguish branching outcomes.
+                </p>
+              </>
+            ) : (
+              <div className="inspector-empty">
+                <span>◎</span>
+                <h2>Select a stage or edge</h2>
+                <p>Click a stage to edit its properties, or click a connection to label and colour it.</p>
+                <p className="inspector-empty-hint">Drag from a stage handle to create a new connection.</p>
               </div>
-              <label className="notes-field"><span>Notes <em>Optional</em></span><textarea placeholder="Add context for your team..." rows={3} /></label>
-            </> : <div className="inspector-empty"><span>◎</span><h2>Select a stage</h2><p>Choose a stage on the canvas to see and edit its properties.</p></div>}
+            )}
           </aside>
         </div>
       </div>

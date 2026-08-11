@@ -27,7 +27,7 @@ export default function DecisionLogPage() {
   }, []);
 
   function restore(version: CanvasVersion) {
-    writeCanvasDraft({ name: version.name, status: version.status || "draft", environment: version.environment || "development", goLiveDate: version.goLiveDate || "", budget: version.budget || "", budgetCurrency: version.budgetCurrency || "USD", sla: version.sla || "", slaUnit: version.slaUnit || "days", stages: version.stages });
+    writeCanvasDraft({ name: version.name, status: version.status || "draft", environment: version.environment || "development", goLiveDate: version.goLiveDate || "", budget: version.budget || "", budgetCurrency: version.budgetCurrency || "USD", sla: version.sla || "", slaUnit: version.slaUnit || "days", stages: version.stages, edges: version.edges ?? [] });
     window.location.href = "/canvas";
   }
 
