@@ -125,8 +125,12 @@ test("frontend exposes feedback loop and alert stages with a single word wrap vi
   ]);
   assert.match(canvas, /label: "Feedback Loop", key: "feedback-loop"/);
   assert.match(canvas, /label: "Alert", key: "alert"/);
+  assert.match(canvas, /label: "Agent", key: "agent"/);
+  assert.match(canvas, /label: "Integration\/Tool", key: "integration-tool"/);
   assert.match(iconLibrary, /feedback-loop\.svg/);
   assert.match(iconLibrary, /alert\.svg/);
+  assert.match(iconLibrary, /agent\.svg/);
+  assert.match(iconLibrary, /integration-tool\.svg/);
   assert.match(canvas, />\s*Word Wrap\s*<\/button>/);
   assert.doesNotMatch(canvas, /Show stage icons|Show property pills|Compact node view/);
   assert.match(canvas, /wordWrap=\{wordWrap\}/);

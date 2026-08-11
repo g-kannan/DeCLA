@@ -16,6 +16,8 @@ type StageIconProps = {
 const ICON_ROOT = "/icons/stages";
 
 const icons = {
+  agent: { file: "agent.svg", label: "Agent" },
+  integrationTool: { file: "integration-tool.svg", label: "Integration/Tool" },
   analytics: { file: "analytics.svg", label: "Analytics" },
   businessRule: { file: "business-rule.svg", label: "Business rule" },
   database: { file: "database.svg", label: "Database" },
@@ -48,6 +50,8 @@ function iconForStage(stage: StageIconData) {
   if (searchable.includes("decision")) return icons.decision;
   if (searchable.includes("feedback-loop") || searchable.includes("feedback loop")) return icons.feedbackLoop;
   if (searchable.includes("alert")) return icons.alert;
+  if (searchable.includes("integration-tool") || searchable.includes("integration tool")) return icons.integrationTool;
+  if (searchable.includes("agent")) return icons.agent;
   if (searchable.includes("snowsql") || searchable.includes("terminal") || searchable.includes("script")) {
     return icons.terminal;
   }

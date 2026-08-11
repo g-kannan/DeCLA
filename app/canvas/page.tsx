@@ -20,6 +20,8 @@ const stageTypes: { label: string; key: StageKind; color: string }[] = [
   { label: "Automation", key: "terminal", color: "#2A2ACF" },
   { label: "Feedback Loop", key: "feedback-loop", color: "#0F766E" },
   { label: "Alert", key: "alert", color: "#DC2626" },
+  { label: "Agent", key: "agent", color: "#7C3AED" },
+  { label: "Integration/Tool", key: "integration-tool", color: "#2563EB" },
 ];
 
 const platforms = ["OpenAI", "Anthropic", "Google Gemini", "Azure OpenAI", "AWS Bedrock", "Streamlit", "Gradio", "React", "Slack", "Microsoft Teams", "Salesforce", "HubSpot", "Snowflake", "Databricks", "dbt", "AWS", "Other"];

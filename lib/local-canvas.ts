@@ -13,6 +13,8 @@ export type CanvasStageIconKey =
   | "terminal"
   | "feedback-loop"
   | "alert"
+  | "agent"
+  | "integration-tool"
   | "analytics";
 
 export type CanvasStage = {
