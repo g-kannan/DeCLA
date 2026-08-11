@@ -116,6 +116,25 @@ test("frontend exposes AI workflow stage types with dedicated icons", async () =
   assert.match(localCanvas, /stage\.iconKey === "analytics"/);
 });
 
+test("frontend exposes feedback loop and alert stages with a single word wrap view option", async () => {
+  const [canvas, flowCanvas, iconLibrary, globals] = await Promise.all([
+    readFile(new URL("../app/canvas/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/canvas/flow-canvas.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../lib/stage-icons.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+  ]);
+  assert.match(canvas, /label: "Feedback Loop", key: "feedback-loop"/);
+  assert.match(canvas, /label: "Alert", key: "alert"/);
+  assert.match(iconLibrary, /feedback-loop\.svg/);
+  assert.match(iconLibrary, /alert\.svg/);
+  assert.match(canvas, />\s*Word Wrap\s*<\/button>/);
+  assert.doesNotMatch(canvas, /Show stage icons|Show property pills|Compact node view/);
+  assert.match(canvas, /wordWrap=\{wordWrap\}/);
+  assert.match(globals, /\.flow-node-rf\.word-wrap > strong \{/);
+  assert.match(globals, /\.flow-node-rf\.word-wrap \.flow-node-meta-rf \{/);
+  assert.match(flowCanvas, /!wordWrap && stage\.properties\.length > 0/);
+});
+
 test("frontend example models a governed weekly forecast analysis AI system", async () => {
   const canvas = await readFile(new URL("../app/canvas/page.tsx", import.meta.url), "utf8");
   assert.match(canvas, /Weekly forecast analysis AI system/);
@@ -191,5 +210,3 @@ test("frontend replaces hint banner with interactive searchbox to highlight spec
   assert.match(globals, /\.flow-node-rf\.search-dimmed/);
   assert.match(globals, /\.flow-node-decision-wrap\.search-match/);
 });
-
-

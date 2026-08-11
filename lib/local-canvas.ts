@@ -11,6 +11,8 @@ export type CanvasStageIconKey =
   | "user-interface"
   | "decision"
   | "terminal"
+  | "feedback-loop"
+  | "alert"
   | "analytics";
 
 export type CanvasStage = {

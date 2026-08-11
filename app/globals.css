@@ -1839,6 +1839,24 @@ input:focus, select:focus, textarea:focus {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.flow-node-rf.word-wrap > strong {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow: visible !important;
+  text-overflow: unset;
+  white-space: normal !important;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+.flow-node-rf.word-wrap .flow-node-meta-rf {
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  text-align: center;
+}
 .flow-node-meta-rf {
   display: flex;
   width: 100%;
@@ -1938,6 +1956,13 @@ input:focus, select:focus, textarea:focus {
   color: var(--ink);
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.flow-node-decision-wrap.word-wrap .flow-node-label {
+  max-width: 112px;
+  overflow: visible !important;
+  text-overflow: unset;
+  white-space: normal !important;
+  overflow-wrap: anywhere;
 }
 
 .flow-node-decision-content .flow-node-props {

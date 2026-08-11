@@ -18,6 +18,8 @@ const stageTypes: { label: string; key: StageKind; color: string }[] = [
   { label: "User Interface", key: "user-interface", color: "#16A34A" },
   { label: "Decision", key: "decision", color: "#F36A10" },
   { label: "Automation", key: "terminal", color: "#2A2ACF" },
+  { label: "Feedback Loop", key: "feedback-loop", color: "#0F766E" },
+  { label: "Alert", key: "alert", color: "#DC2626" },
 ];
 
 const platforms = ["OpenAI", "Anthropic", "Google Gemini", "Azure OpenAI", "AWS Bedrock", "Streamlit", "Gradio", "React", "Slack", "Microsoft Teams", "Salesforce", "HubSpot", "Snowflake", "Databricks", "dbt", "AWS", "Other"];
@@ -668,10 +670,7 @@ export default function DecisionCanvasPage() {
   const [showExamplesMenu, setShowExamplesMenu] = useState(false);
   const [showArrangeMenu, setShowArrangeMenu] = useState(false);
   const [showLineStyleMenu, setShowLineStyleMenu] = useState(false);
-  const [showViewMenu, setShowViewMenu] = useState(false);
-  const [hideIcons, setHideIcons] = useState(false);
-  const [hideProperties, setHideProperties] = useState(false);
-  const [compactMode, setCompactMode] = useState(false);
+  const [wordWrap, setWordWrap] = useState(false);
   const [versionTags, setVersionTags] = useState<string[]>([]);
   const [customTags, setCustomTags] = useState<string[]>([]);
   const [showCustomTagInput, setShowCustomTagInput] = useState(false);
@@ -1520,23 +1519,13 @@ function getEdgeSvgPath(
                     </div>
                   )}
                 </div>
-                <div className="export-menu-wrap">
-                  <button className="secondary-button" onClick={() => setShowViewMenu((open) => !open)}>👁️ View options <span className="button-caret">⌄</span></button>
-                  {showViewMenu && (
-                    <div className="floating-menu export-menu">
-                      <small>CANVAS VIEW DENSITY</small>
-                      <button onClick={() => { setHideIcons((v) => !v); setShowViewMenu(false); setMessage(hideIcons ? "Stage icons shown" : "Stage icons hidden"); }}>
-                        {!hideIcons ? "☑" : "☐"} Show stage icons
-                      </button>
-                      <button onClick={() => { setHideProperties((v) => !v); setShowViewMenu(false); setMessage(hideProperties ? "Property pills shown" : "Property pills hidden"); }}>
-                        {!hideProperties ? "☑" : "☐"} Show property pills
-                      </button>
-                      <button onClick={() => { setCompactMode((v) => !v); setShowViewMenu(false); setMessage(compactMode ? "Standard view mode" : "Compact view mode"); }}>
-                        {compactMode ? "☑" : "☐"} Compact node view
-                      </button>
-                    </div>
-                  )}
-                </div>
+                <button
+                  className={`secondary-button${wordWrap ? " active" : ""}`}
+                  onClick={() => { setWordWrap((value) => !value); setMessage(wordWrap ? "Standard stage labels" : "Word wrap enabled"); }}
+                  aria-pressed={wordWrap}
+                >
+                  Word Wrap
+                </button>
                 <button className="secondary-button" onClick={clearCanvasOnly} disabled={!stages.length && !edges.length}>Clear canvas</button>
               </div>
               <div className="canvas-toolbar-group canvas-tools-right">
@@ -1600,9 +1589,7 @@ function getEdgeSvgPath(
                   searchQuery={searchQuery}
                   searchMatchIds={searchMatchSet}
                   edgeLineStyle={edgeLineStyle}
-                  hideIcons={hideIcons}
-                  hideProperties={hideProperties}
-                  compactMode={compactMode}
+                  wordWrap={wordWrap}
                   onSelectStage={(id) => { setSelectedId(id); setSelectedEdgeId(null); }}
                   onSelectEdge={(id) => { setSelectedEdgeId(id); setSelectedId(null); }}
                   onStagePositionsChange={handleStagePositionsChange}

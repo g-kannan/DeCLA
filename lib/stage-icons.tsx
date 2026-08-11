@@ -21,6 +21,7 @@ const icons = {
   database: { file: "database.svg", label: "Database" },
   databricks: { file: "databricks.svg", label: "Databricks" },
   decision: { file: "decision.svg", label: "Decision" },
+  feedbackLoop: { file: "feedback-loop.svg", label: "Feedback loop" },
   humanAction: { file: "human-action.svg", label: "Human action" },
   iceberg: { file: "iceberg.svg", label: "Iceberg" },
   llm: { file: "llm.svg", label: "Large language model" },
@@ -29,6 +30,7 @@ const icons = {
   terminal: { file: "terminal.svg", label: "Scripts" },
   transform: { file: "transform.svg", label: "Transformation" },
   userInterface: { file: "user-interface.svg", label: "User interface" },
+  alert: { file: "alert.svg", label: "Alert" },
 } as const;
 
 function iconForStage(stage: StageIconData) {
@@ -44,6 +46,8 @@ function iconForStage(stage: StageIconData) {
   if (searchable.includes("llm") || searchable.includes("large language model")) return icons.llm;
   if (searchable.includes("user-interface") || searchable.includes("user interface") || searchable.includes("streamlit") || searchable.includes("gradio")) return icons.userInterface;
   if (searchable.includes("decision")) return icons.decision;
+  if (searchable.includes("feedback-loop") || searchable.includes("feedback loop")) return icons.feedbackLoop;
+  if (searchable.includes("alert")) return icons.alert;
   if (searchable.includes("snowsql") || searchable.includes("terminal") || searchable.includes("script")) {
     return icons.terminal;
   }

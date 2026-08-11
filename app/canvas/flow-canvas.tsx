@@ -103,12 +103,8 @@ export type FlowCanvasProps = {
   searchMatchIds?: Set<string>;
   /** Global default edge line routing style (defaults to "smoothstep" L-shaped grid routing) */
   edgeLineStyle?: CanvasEdgeLineStyle;
-  /** Hide icons across canvas nodes */
-  hideIcons?: boolean;
-  /** Hide property pills across canvas nodes */
-  hideProperties?: boolean;
-  /** Render compact node sizing */
-  compactMode?: boolean;
+  /** Wrap stage names and omit node icons */
+  wordWrap?: boolean;
   /** User clicked a stage node */
   onSelectStage: (id: string | null) => void;
   /** User clicked an edge */
@@ -132,15 +128,13 @@ type StageNodeData = {
   total: number;
   isDecision: boolean;
   decisionLabel?: string;
-  hideIcons?: boolean;
-  hideProperties?: boolean;
-  compactMode?: boolean;
+  wordWrap?: boolean;
   isSearchActive?: boolean;
   isSearchMatch?: boolean;
 };
 
 function StageNode({ data }: NodeProps) {
-  const { stage, selected, index, isDecision, decisionLabel, hideIcons, hideProperties, compactMode, isSearchActive, isSearchMatch } = data as StageNodeData;
+  const { stage, selected, index, isDecision, decisionLabel, wordWrap, isSearchActive, isSearchMatch } = data as StageNodeData;
 
   const searchStatusClass = isSearchActive
     ? isSearchMatch
@@ -156,7 +150,7 @@ function StageNode({ data }: NodeProps) {
 
         {/* Wrapper sized to the diamond's visual bounding box so RF positions handles correctly */}
         <div
-          className={`flow-node-decision-wrap${compactMode ? " compact-node" : ""}${searchStatusClass}`}
+          className={`flow-node-decision-wrap${wordWrap ? " word-wrap" : ""}${searchStatusClass}`}
           data-selected={selected}
           data-search-match={isSearchActive ? (isSearchMatch ? "true" : "false") : undefined}
           style={{ "--node-accent": stage.color } as CSSProperties}
@@ -172,7 +166,7 @@ function StageNode({ data }: NodeProps) {
             ) : (
               <span className="flow-node-badge">{decisionLabel ?? String(index + 1).padStart(2, "0")}</span>
             )}
-            {!hideIcons && (
+            {!wordWrap && (
               <span className="flow-node-icon-wrap">
                 <StageIcon
                   stage={{ label: stage.name, platform: stage.platform, stage_type_key: stage.iconKey, category: stage.type }}
@@ -181,7 +175,7 @@ function StageNode({ data }: NodeProps) {
               </span>
             )}
             <strong className="flow-node-label">{stage.name || "Untitled"}</strong>
-            {!hideProperties && stage.properties.length > 0 && (
+            {!wordWrap && stage.properties.length > 0 && (
               <span className="flow-node-props">{stage.properties.length} {stage.properties.length === 1 ? "prop" : "props"}</span>
             )}
           </div>
@@ -200,7 +194,7 @@ function StageNode({ data }: NodeProps) {
       <Handle type="target" position={Position.Left} id="target" className="rf-handle" />
 
       <div
-        className={`flow-node-rf${compactMode ? " compact-node" : ""}${searchStatusClass}`}
+        className={`flow-node-rf${wordWrap ? " word-wrap" : ""}${searchStatusClass}`}
         style={{ "--node-accent": stage.color } as CSSProperties}
         data-selected={selected}
         data-search-match={isSearchActive ? (isSearchMatch ? "true" : "false") : undefined}
@@ -213,7 +207,7 @@ function StageNode({ data }: NodeProps) {
             <span className="node-more">•••</span>
           )}
         </span>
-        {!hideIcons && (
+        {!wordWrap && (
           <span className="flow-node-icon-rf">
             <StageIcon
               stage={{ label: stage.name, platform: stage.platform, stage_type_key: stage.iconKey, category: stage.type }}
@@ -226,7 +220,7 @@ function StageNode({ data }: NodeProps) {
           <span>{stage.type}</span>
           <span>{stage.platform}</span>
         </span>
-        {!hideProperties && stage.properties.length > 0 && (
+        {!wordWrap && stage.properties.length > 0 && (
           <span className="node-property-count">{stage.properties.length} {stage.properties.length === 1 ? "property" : "properties"}</span>
         )}
       </div>
@@ -360,7 +354,7 @@ function stagesToRfNodes(
   stages: CanvasStage[],
   positions: Map<string, XYPosition>,
   selectedStageId: string | null,
-  options?: { hideIcons?: boolean; hideProperties?: boolean; compactMode?: boolean; searchQuery?: string; searchMatchIds?: Set<string> },
+  options?: { wordWrap?: boolean; searchQuery?: string; searchMatchIds?: Set<string> },
 ): Node[] {
   let decisionCounter = 0;
   const decisionLabels = new Map<string, string>();
@@ -387,9 +381,7 @@ function stagesToRfNodes(
         total: stages.length,
         isDecision: stage.iconKey === "decision",
         decisionLabel: decisionLabels.get(stage.id),
-        hideIcons: options?.hideIcons,
-        hideProperties: options?.hideProperties,
-        compactMode: options?.compactMode,
+        wordWrap: options?.wordWrap,
         isSearchActive,
         isSearchMatch,
       } satisfies StageNodeData,
@@ -461,9 +453,7 @@ function FlowCanvasInner({
   searchQuery,
   searchMatchIds,
   edgeLineStyle = "smoothstep",
-  hideIcons,
-  hideProperties,
-  compactMode,
+  wordWrap,
   onSelectStage,
   onSelectEdge,
   onStagePositionsChange,
@@ -472,8 +462,8 @@ function FlowCanvasInner({
 }: FlowCanvasProps) {
   const { fitView } = useReactFlow();
   const viewOpts = useMemo(
-    () => ({ hideIcons, hideProperties, compactMode, searchQuery, searchMatchIds }),
-    [hideIcons, hideProperties, compactMode, searchQuery, searchMatchIds],
+    () => ({ wordWrap, searchQuery, searchMatchIds }),
+    [wordWrap, searchQuery, searchMatchIds],
   );
   const isSearchActive = Boolean(searchQuery?.trim());
 
@@ -569,7 +559,7 @@ function FlowCanvasInner({
       setRfEdges(canvasEdgesToRfEdges(canvasEdges, selectedEdgeId, edgeLineStyle, { isSearchActive, searchMatchIds }));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stages, canvasEdges, selectedStageId, selectedEdgeId, edgeLineStyle, hideIcons, hideProperties, compactMode, searchQuery, searchMatchIds]);
+  }, [stages, canvasEdges, selectedStageId, selectedEdgeId, edgeLineStyle, wordWrap, searchQuery, searchMatchIds]);
 
   // ── Node drag end — persist positions ─────────────────────────────────────
   const handleNodesChange: OnNodesChange = useCallback(
