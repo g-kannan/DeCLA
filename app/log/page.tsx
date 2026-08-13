@@ -27,12 +27,12 @@ export default function DecisionLogPage() {
   }, []);
 
   function restore(version: CanvasVersion) {
-    writeCanvasDraft({ name: version.name, status: version.status || "draft", environment: version.environment || "development", goLiveDate: version.goLiveDate || "", budget: version.budget || "", budgetCurrency: version.budgetCurrency || "USD", sla: version.sla || "", slaUnit: version.slaUnit || "days", stages: version.stages });
+    writeCanvasDraft({ name: version.name, status: version.status || "draft", environment: version.environment || "development", goLiveDate: version.goLiveDate || "", budget: version.budget || "", budgetCurrency: version.budgetCurrency || "USD", sla: version.sla || "", slaUnit: version.slaUnit || "days", stages: version.stages, edges: version.edges ?? [] });
     window.location.href = "/canvas";
   }
 
   return (
-    <AppShell status="ready">
+    <AppShell>
       <header className="page-heading">
         <div><span>VERSION HISTORY</span><h1>Decision log</h1><p>Review saved versions of this decision canvas and restore an earlier process.</p></div>
         <Link className="primary-button detail-link" href="/canvas">Open canvas</Link>

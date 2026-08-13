@@ -1,21 +1,30 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties } from "react";
 import { AppShell } from "@/app/components/app-shell";
-import { CANVAS_STORAGE_KEY, nextCanvasVersion, readCanvasVersions, writeCanvasDraft, writeCanvasVersions, type CanvasEnvironment, type CanvasStage, type CanvasStatus, type CanvasVersion, type PropertyKind, type StageProperty } from "@/lib/local-canvas";
+import { CANVAS_STORAGE_KEY, nextCanvasVersion, normalizeCanvasEdges, normalizeCanvasStages, readCanvasVersions, writeCanvasDraft, writeCanvasVersions, type CanvasEdge, type CanvasEdgeLineStyle, type CanvasEnvironment, type CanvasStage, type CanvasStageIconKey, type CanvasStatus, type CanvasVersion, type PropertyKind, type StageProperty } from "@/lib/local-canvas";
 import { StageIcon } from "@/lib/stage-icons";
+import { FlowCanvas, getAutoLayout } from "./flow-canvas";
 
-type StageKind = "source" | "transform" | "database" | "analytics" | "terminal";
+type StageKind = Exclude<CanvasStageIconKey, "analytics">;
 
 const stageTypes: { label: string; key: StageKind; color: string }[] = [
   { label: "Input", key: "source", color: "#2A2ACF" },
   { label: "Transform", key: "transform", color: "#F36A10" },
   { label: "Storage", key: "database", color: "#2A2ACF" },
-  { label: "Decision", key: "analytics", color: "#F36A10" },
+  { label: "Human Action", key: "human-action", color: "#7C3AED" },
+  { label: "Business Rule", key: "business-rule", color: "#0891B2" },
+  { label: "LLM", key: "llm", color: "#DB2777" },
+  { label: "User Interface", key: "user-interface", color: "#16A34A" },
+  { label: "Decision", key: "decision", color: "#F36A10" },
   { label: "Automation", key: "terminal", color: "#2A2ACF" },
+  { label: "Feedback Loop", key: "feedback-loop", color: "#0F766E" },
+  { label: "Alert", key: "alert", color: "#DC2626" },
+  { label: "Agent", key: "agent", color: "#7C3AED" },
+  { label: "Integration/Tool", key: "integration-tool", color: "#2563EB" },
 ];
 
-const platforms = ["Salesforce", "HubSpot", "Snowflake", "Databricks", "dbt", "AWS", "Other"];
+const platforms = ["OpenAI", "Anthropic", "Google Gemini", "Azure OpenAI", "AWS Bedrock", "Streamlit", "Gradio", "React", "Slack", "Microsoft Teams", "Salesforce", "HubSpot", "Snowflake", "Databricks", "dbt", "AWS", "Other"];
 const durationUnits = ["mins", "hours", "days"];
 const currencies = ["USD", "EUR", "GBP", "INR"];
 const propertyPresets: { label: string; kind: PropertyKind; unit?: string; currency?: string }[] = [
@@ -37,52 +46,533 @@ const environmentOptions: { value: CanvasEnvironment; label: string }[] = [
   { value: "staging", label: "Staging" },
   { value: "production", label: "Production" },
 ];
+// Weekly forecast analysis AI workflow using LangGraph and Gemini AI within Databricks.
 const seedStages: CanvasStage[] = [
   {
-    id: "capture-lead",
-    name: "Capture lead",
+    id: "forecast-ingestion",
+    name: "Ingest weekly forecast files",
     type: "Input",
-    platform: "Salesforce",
+    platform: "Databricks",
     iconKey: "source",
     color: "#2A2ACF",
-    properties: [{ id: "p1", name: "Rows", value: "18,420", kind: "rows", unit: "rows/day" }, { id: "p2", name: "Owner", value: "RevOps", kind: "owner" }],
+    x: 350,
+    y: 0,
+    properties: [
+      { id: "ingest-files", name: "Data source", value: "Weekly forecast files (latest week vs WoW & YoY)", kind: "custom" },
+      { id: "ingest-scale", name: "Volume", value: "Millions of forecast rows", kind: "rows", unit: "rows" },
+      { id: "ingest-owner", name: "Owner", value: "Data Engineering", kind: "owner" },
+      { id: "ingest-duration", name: "Duration", value: "15", kind: "duration", unit: "mins" },
+    ],
   },
   {
-    id: "qualify-lead",
-    name: "Qualify lead",
-    type: "Decision",
-    platform: "HubSpot",
-    iconKey: "analytics",
-    color: "#F36A10",
-    properties: [{ id: "p3", name: "Duration", value: "4", kind: "duration", unit: "hours" }, { id: "p4", name: "SLA", value: "1", kind: "sla", unit: "days" }],
-  },
-  {
-    id: "enrich-profile",
-    name: "Enrich profile",
+    id: "data-privacy-masking",
+    name: "Mask sensitive identifiers",
     type: "Transform",
-    platform: "dbt",
+    platform: "Databricks",
     iconKey: "transform",
     color: "#F36A10",
-    properties: [{ id: "p5", name: "Cost", value: "12", kind: "cost", currency: "USD" }],
+    x: 350,
+    y: 120,
+    properties: [
+      { id: "masking-rule", name: "Privacy rule", value: "Mask factory codes, country codes, & material numbers", kind: "custom" },
+      { id: "masking-audit", name: "Audit trail", value: "Unity Catalog lineage and column masking", kind: "custom" },
+      { id: "masking-guardrail", name: "Guardrail", value: "Zero unmasked sensitive identifiers sent to LLM", kind: "custom" },
+    ],
   },
   {
-    id: "sync-warehouse",
-    name: "Sync to warehouse",
+    id: "delta-lake-storage",
+    name: "Store in Delta Lake & Unity Catalog",
+    type: "Storage",
+    platform: "Databricks",
+    iconKey: "database",
+    color: "#2A2ACF",
+    x: 350,
+    y: 240,
+    properties: [
+      { id: "delta-warehouse", name: "Storage engine", value: "Databricks Delta Lake tables", kind: "custom" },
+      { id: "delta-levels", name: "Analysis levels", value: "1. Total volume | 2. Country sourcing | 3. Factory/Item | 4. Lifecycle", kind: "custom" },
+      { id: "delta-audit", name: "Governance", value: "Full Unity Catalog security and audit trail", kind: "custom" },
+    ],
+  },
+  {
+    id: "hypothesis-input",
+    name: "Add freeform hypothesis statements",
+    type: "Human Action",
+    platform: "Other",
+    iconKey: "human-action",
+    color: "#7C3AED",
+    x: 700,
+    y: 120,
+    properties: [
+      { id: "hypo-method", name: "Input mode", value: "Plain language statements with zero code changes", kind: "custom" },
+      { id: "hypo-owner", name: "Owner", value: "Business Users & Demand Planners", kind: "owner" },
+      { id: "hypo-scope", name: "Impact", value: "Expands coverage to new questions, brands, or verticals", kind: "custom" },
+      { id: "hypo-sla", name: "SLA", value: "1", kind: "sla", unit: "hours" },
+    ],
+  },
+  {
+    id: "knowledge-graph-store",
+    name: "Knowledge graph & hypothesis store",
+    type: "Storage",
+    platform: "Databricks",
+    iconKey: "database",
+    color: "#0284C7",
+    x: 700,
+    y: 240,
+    properties: [
+      { id: "kg-schema", name: "Graph schema", value: "Domain knowledge graph & plain-language hypotheses", kind: "custom" },
+      { id: "kg-scale", name: "Scalability", value: "Scalable by design for instant analytical expansion", kind: "custom" },
+    ],
+  },
+  {
+    id: "privacy-compliance-gate",
+    name: "Is data privacy control enforced?",
+    type: "Business Rule",
+    platform: "Databricks",
+    iconKey: "business-rule",
+    color: "#0891B2",
+    x: 350,
+    y: 380,
+    properties: [
+      { id: "privacy-rule", name: "Gate", value: "Verify factory, country, & material masks before LLM payload", kind: "custom" },
+      { id: "privacy-outcomes", name: "Outcomes", value: "Pass | Compliance hold", kind: "custom" },
+      { id: "privacy-audit", name: "Audit record", value: "Unity Catalog compliance verification log", kind: "custom" },
+    ],
+  },
+  {
+    id: "hypothesis-updated-decision",
+    name: "D1: Are new hypotheses registered?",
+    type: "Decision",
+    platform: "Other",
+    iconKey: "decision",
+    color: "#F36A10",
+    x: 525,
+    y: 520,
+    properties: [
+      { id: "d1-1", name: "Question", value: "Are new plain-language business hypotheses in Knowledge Graph?", kind: "custom" },
+      { id: "d1-2", name: "Outcomes", value: "New hypothesis loaded | Standard 20+ questions run", kind: "custom" },
+      { id: "d1-3", name: "Expansion route", value: "Dynamically append hypothesis context to LangGraph query plan", kind: "custom" },
+    ],
+  },
+  {
+    id: "langgraph-gemini-sql-gen",
+    name: "LangGraph & Gemini AI SQL generation",
+    type: "LLM",
+    platform: "Google Gemini",
+    iconKey: "llm",
+    color: "#DB2777",
+    x: 525,
+    y: 660,
+    properties: [
+      { id: "lg-1", name: "Task", value: "Dynamically generate & execute SQL for 20+ business questions", kind: "custom" },
+      { id: "lg-2", name: "Orchestration", value: "LangGraph agentic workflow inside Databricks", kind: "custom" },
+      { id: "lg-3", name: "Inputs", value: "Masked forecast rows & active knowledge graph hypotheses", kind: "custom" },
+      { id: "lg-4", name: "Guardrail", value: "No unmasked factory, country, or material identifiers", kind: "custom" },
+    ],
+  },
+  {
+    id: "sql-execution-breach-flagging",
+    name: "Execute SQL & flag threshold breaches",
+    type: "Automation",
+    platform: "Databricks",
+    iconKey: "terminal",
+    color: "#2A2ACF",
+    x: 525,
+    y: 800,
+    properties: [
+      { id: "se-1", name: "Execution", value: "Databricks SQL Warehouse against millions of rows", kind: "custom" },
+      { id: "se-2", name: "4 Levels", value: "Volume trends, country sourcing, factory/item, & product lifecycle", kind: "custom" },
+      { id: "se-3", name: "Breach detection", value: "Automated variance & threshold breach flagging", kind: "custom" },
+    ],
+  },
+  {
+    id: "breach-detection-decision",
+    name: "D2: Were threshold breaches flagged?",
+    type: "Decision",
+    platform: "Other",
+    iconKey: "decision",
+    color: "#F36A10",
+    x: 525,
+    y: 940,
+    properties: [
+      { id: "d2-1", name: "Question", value: "Do WoW or YoY forecast changes exceed anomaly thresholds?", kind: "custom" },
+      { id: "d2-2", name: "Outcomes", value: "Breach flagged (Detailed narrative) | Normal variance", kind: "custom" },
+      { id: "d2-3", name: "Flagged route", value: "Trigger deep-dive root cause analysis narrative", kind: "custom" },
+    ],
+  },
+  {
+    id: "narrative-generation",
+    name: "Produce business narrative insights",
+    type: "LLM",
+    platform: "Google Gemini",
+    iconKey: "llm",
+    color: "#DB2777",
+    x: 525,
+    y: 1080,
+    properties: [
+      { id: "narr-1", name: "Task", value: "Synthesize 4-level findings into executive narrative & key drivers", kind: "custom" },
+      { id: "narr-2", name: "Output", value: "Plain-language business story with root-cause insights", kind: "custom" },
+      { id: "narr-3", name: "Guardrail", value: "Strict grounding in executed SQL query results", kind: "custom" },
+    ],
+  },
+  {
+    id: "excel-report-generation",
+    name: "Generate multi-tab Excel report",
+    type: "Automation",
+    platform: "Other",
+    iconKey: "terminal",
+    color: "#2A2ACF",
+    x: 525,
+    y: 1220,
+    properties: [
+      { id: "xls-1", name: "Report tabs", value: "Executive Summary, 4 Level Drill-downs, & SQL Audit Log", kind: "custom" },
+      { id: "xls-2", name: "Formatting", value: "Colour-coded variance highlights & breach callouts", kind: "custom" },
+      { id: "xls-3", name: "Delivery SLA", value: "Distributed automatically within hours", kind: "custom" },
+    ],
+  },
+  {
+    id: "insights-distribution-portal",
+    name: "Deliver Excel report & audit portal",
+    type: "User Interface",
+    platform: "Streamlit",
+    iconKey: "user-interface",
+    color: "#16A34A",
+    x: 350,
+    y: 1360,
+    properties: [
+      { id: "dis-1", name: "Channels", value: "Automated email distribution & web download portal", kind: "custom" },
+      { id: "dis-2", name: "Views", value: "Colour-coded Excel, Executive Summary, & SQL Audit Log", kind: "custom" },
+    ],
+  },
+  {
+    id: "executive-review",
+    name: "Review report & execute actions",
+    type: "Human Action",
+    platform: "Other",
+    iconKey: "human-action",
+    color: "#7C3AED",
+    x: 350,
+    y: 1500,
+    properties: [
+      { id: "rev-1", name: "Audience", value: "Supply Chain Directors & Demand Planning Leadership", kind: "owner" },
+      { id: "rev-2", name: "Action", value: "Validate sourcing shifts, factory adjustments & lifecycle decisions", kind: "custom" },
+      { id: "rev-3", name: "SLA", value: "4", kind: "sla", unit: "hours" },
+    ],
+  },
+  {
+    id: "unity-catalog-audit-log",
+    name: "Persist Unity Catalog audit log",
+    type: "Storage",
+    platform: "Databricks",
+    iconKey: "database",
+    color: "#2A2ACF",
+    x: 700,
+    y: 1360,
+    properties: [
+      { id: "aud-1", name: "Audit log", value: "Full SQL query log, LLM prompts, masked maps, & execution times", kind: "custom" },
+      { id: "aud-2", name: "Governance", value: "Zero manual intervention automated audit trail", kind: "custom" },
+    ],
+  },
+];
+
+const seedEdges: CanvasEdge[] = [
+  { id: "fe-1-2", fromStageId: "forecast-ingestion", toStageId: "data-privacy-masking" },
+  { id: "fe-2-3", fromStageId: "data-privacy-masking", toStageId: "delta-lake-storage" },
+  { id: "fe-4-5", fromStageId: "hypothesis-input", toStageId: "knowledge-graph-store" },
+  { id: "fe-3-6", fromStageId: "delta-lake-storage", toStageId: "privacy-compliance-gate" },
+  { id: "fe-5-7", fromStageId: "knowledge-graph-store", toStageId: "hypothesis-updated-decision" },
+  { id: "fe-6-7", fromStageId: "privacy-compliance-gate", toStageId: "hypothesis-updated-decision", label: "Pass", color: "#16a34a" },
+  { id: "fe-7-8a", fromStageId: "hypothesis-updated-decision", toStageId: "langgraph-gemini-sql-gen", label: "New hypothesis", color: "#16a34a" },
+  { id: "fe-7-8b", fromStageId: "hypothesis-updated-decision", toStageId: "langgraph-gemini-sql-gen", label: "Standard 20+ questions", color: "#2a2acf" },
+  { id: "fe-8-9", fromStageId: "langgraph-gemini-sql-gen", toStageId: "sql-execution-breach-flagging" },
+  { id: "fe-9-10", fromStageId: "sql-execution-breach-flagging", toStageId: "breach-detection-decision" },
+  { id: "fe-10-11a", fromStageId: "breach-detection-decision", toStageId: "narrative-generation", label: "Breach flagged", color: "#f36a10" },
+  { id: "fe-10-11b", fromStageId: "breach-detection-decision", toStageId: "narrative-generation", label: "Normal variance", color: "#16a34a" },
+  { id: "fe-11-12", fromStageId: "narrative-generation", toStageId: "excel-report-generation" },
+  { id: "fe-12-13", fromStageId: "excel-report-generation", toStageId: "insights-distribution-portal" },
+  { id: "fe-13-14", fromStageId: "insights-distribution-portal", toStageId: "executive-review" },
+  { id: "fe-12-15", fromStageId: "excel-report-generation", toStageId: "unity-catalog-audit-log" },
+];
+
+const returnRequestSeedStages: CanvasStage[] = [
+  {
+    id: "ret-customer-submits",
+    name: "Customer submits return request",
+    type: "User Interface",
+    platform: "Streamlit",
+    iconKey: "user-interface",
+    color: "#16A34A",
+    x: 350,
+    y: 0,
+    properties: [
+      { id: "ret-1-1", name: "Required data", value: "Order ID, Item ID, Reason, Photo evidence", kind: "custom" },
+    ],
+  },
+  {
+    id: "ret-agent-reads",
+    name: "Agent reads the request",
+    type: "LLM",
+    platform: "OpenAI",
+    iconKey: "llm",
+    color: "#DB2777",
+    x: 350,
+    y: 120,
+    properties: [
+      { id: "ret-2-1", name: "Task", value: "Parse customer request and extract return intent", kind: "custom" },
+    ],
+  },
+  {
+    id: "ret-retrieves-data",
+    name: "Retrieves order and customer data",
     type: "Storage",
     platform: "Snowflake",
     iconKey: "database",
     color: "#2A2ACF",
-    properties: [{ id: "p6", name: "Duration", value: "18", kind: "duration", unit: "mins" }, { id: "p7", name: "Rows", value: "62,800", kind: "rows", unit: "rows" }],
+    x: 350,
+    y: 240,
+    properties: [
+      { id: "ret-3-1", name: "Data sources", value: "Order DB, Customer profile, Delivery records", kind: "custom" },
+    ],
   },
   {
-    id: "activate-campaign",
-    name: "Activate campaign",
+    id: "ret-d1-order-valid",
+    name: "D1: Is the order valid?",
+    type: "Decision",
+    platform: "Other",
+    iconKey: "decision",
+    color: "#F36A10",
+    x: 350,
+    y: 380,
+    properties: [
+      { id: "ret-4-1", name: "Question", value: "Is the order ID active and purchase verified?", kind: "custom" },
+      { id: "ret-4-2", name: "Outcomes", value: "Yes | No", kind: "custom" },
+    ],
+  },
+  {
+    id: "ret-4a-ask-or-reject",
+    name: "Ask for more information or reject",
+    type: "Human Action",
+    platform: "Slack",
+    iconKey: "human-action",
+    color: "#7C3AED",
+    x: 50,
+    y: 380,
+    properties: [
+      { id: "ret-4a-1", name: "Action", value: "Request order details or issue rejection notice", kind: "custom" },
+    ],
+  },
+  {
+    id: "ret-d2-item-eligible",
+    name: "D2: Is the item return-eligible?",
+    type: "Decision",
+    platform: "Other",
+    iconKey: "decision",
+    color: "#F36A10",
+    x: 650,
+    y: 380,
+    properties: [
+      { id: "ret-5-1", name: "Question", value: "Is within 30-day return window and non-final sale?", kind: "custom" },
+      { id: "ret-5-2", name: "Outcomes", value: "Yes | No", kind: "custom" },
+    ],
+  },
+  {
+    id: "ret-5a-explain-policy",
+    name: "Explain policy and close case",
+    type: "Human Action",
+    platform: "Other",
+    iconKey: "human-action",
+    color: "#7C3AED",
+    x: 650,
+    y: 520,
+    properties: [
+      { id: "ret-5a-1", name: "Action", value: "Send policy explanation to customer and close case", kind: "custom" },
+    ],
+  },
+  {
+    id: "ret-d3-reason-for-return",
+    name: "D3: What is the reason for return?",
+    type: "Decision",
+    platform: "Other",
+    iconKey: "decision",
+    color: "#F36A10",
+    x: 950,
+    y: 380,
+    properties: [
+      { id: "ret-6-1", name: "Question", value: "What is the customer-reported reason for return?", kind: "custom" },
+      { id: "ret-6-2", name: "Outcomes", value: "Damaged product | Wrong product | Change of mind", kind: "custom" },
+    ],
+  },
+  {
+    id: "ret-6a-create-replacement",
+    name: "Create replacement / claim",
     type: "Automation",
-    platform: "HubSpot",
+    platform: "Other",
     iconKey: "terminal",
     color: "#2A2ACF",
-    properties: [{ id: "p8", name: "Owner", value: "Marketing Ops", kind: "owner" }],
+    x: 1250,
+    y: 100,
+    properties: [
+      { id: "ret-6a-1", name: "Action", value: "Generate damage claim and initiate replacement order", kind: "custom" },
+    ],
   },
+  {
+    id: "ret-6b-priority-replacement",
+    name: "Arrange priority replacement",
+    type: "Automation",
+    platform: "Other",
+    iconKey: "terminal",
+    color: "#2A2ACF",
+    x: 1250,
+    y: 330,
+    properties: [
+      { id: "ret-6b-1", name: "Action", value: "Dispatch wrong-item return label & priority replacement", kind: "custom" },
+    ],
+  },
+  {
+    id: "ret-6c-standard-return",
+    name: "Start standard return",
+    type: "Automation",
+    platform: "Other",
+    iconKey: "terminal",
+    color: "#2A2ACF",
+    x: 1250,
+    y: 560,
+    properties: [
+      { id: "ret-6c-1", name: "Action", value: "Generate standard return label and RMA tracking number", kind: "custom" },
+    ],
+  },
+  {
+    id: "ret-d4-auto-refund",
+    name: "D4: Is an automatic refund permitted?",
+    type: "Decision",
+    platform: "Other",
+    iconKey: "decision",
+    color: "#F36A10",
+    x: 950,
+    y: 880,
+    properties: [
+      { id: "ret-7-1", name: "Question", value: "Does transaction pass automatic refund risk checks?", kind: "custom" },
+      { id: "ret-7-2", name: "Outcomes", value: "Low-value, low-risk | High-value item | Suspicious pattern", kind: "custom" },
+    ],
+  },
+  {
+    id: "ret-7a-approve-auto",
+    name: "Approve refund automatically",
+    type: "Automation",
+    platform: "Other",
+    iconKey: "terminal",
+    color: "#2A2ACF",
+    x: 1250,
+    y: 790,
+    properties: [
+      { id: "ret-7a-1", name: "Action", value: "Issue instant automated refund to payment method", kind: "custom" },
+    ],
+  },
+  {
+    id: "ret-7b-human-approval",
+    name: "Send for human approval",
+    type: "Human Action",
+    platform: "Other",
+    iconKey: "human-action",
+    color: "#7C3AED",
+    x: 1250,
+    y: 1020,
+    properties: [
+      { id: "ret-7b-1", name: "Owner", value: "Customer Support Lead", kind: "owner" },
+    ],
+  },
+  {
+    id: "ret-7c-fraud-review",
+    name: "Send to fraud review",
+    type: "Human Action",
+    platform: "Other",
+    iconKey: "human-action",
+    color: "#7C3AED",
+    x: 1250,
+    y: 1250,
+    properties: [
+      { id: "ret-7c-1", name: "Owner", value: "Fraud Operations Team", kind: "owner" },
+    ],
+  },
+  {
+    id: "ret-8-execute-action",
+    name: "Agent executes the approved action",
+    type: "Automation",
+    platform: "Other",
+    iconKey: "terminal",
+    color: "#2A2ACF",
+    x: 350,
+    y: 1150,
+    properties: [
+      { id: "ret-8-1", name: "Task", value: "Execute approved return, replacement, or review action", kind: "custom" },
+    ],
+  },
+  {
+    id: "ret-9-update-system",
+    name: "Updates order system, sends message",
+    type: "Storage",
+    platform: "Salesforce",
+    iconKey: "database",
+    color: "#059669",
+    x: 350,
+    y: 1380,
+    properties: [
+      { id: "ret-9-1", name: "Target", value: "Update OMS status & notify customer via email/SMS", kind: "custom" },
+    ],
+  },
+  {
+    id: "ret-10-records-audit",
+    name: "Records audit trail and analytics",
+    type: "Storage",
+    platform: "Snowflake",
+    iconKey: "database",
+    color: "#0284C7",
+    x: 350,
+    y: 1610,
+    properties: [
+      { id: "ret-10-1", name: "Log", value: "Log governance audit trail to Snowflake data warehouse", kind: "custom" },
+    ],
+  },
+  {
+    id: "ret-11-case-completed",
+    name: "Return case completed",
+    type: "User Interface",
+    platform: "Streamlit",
+    iconKey: "user-interface",
+    color: "#059669",
+    x: 350,
+    y: 1840,
+    properties: [
+      { id: "ret-11-1", name: "Status", value: "Resolution complete and case closed", kind: "custom" },
+    ],
+  },
+];
+
+const returnRequestSeedEdges: CanvasEdge[] = [
+  { id: "e1-2", fromStageId: "ret-customer-submits", toStageId: "ret-agent-reads" },
+  { id: "e2-3", fromStageId: "ret-agent-reads", toStageId: "ret-retrieves-data" },
+  { id: "e3-4", fromStageId: "ret-retrieves-data", toStageId: "ret-d1-order-valid" },
+  { id: "e4-4a", fromStageId: "ret-d1-order-valid", toStageId: "ret-4a-ask-or-reject", label: "No", color: "#dc2626" },
+  { id: "e4-5", fromStageId: "ret-d1-order-valid", toStageId: "ret-d2-item-eligible", label: "Yes", color: "#16a34a" },
+  { id: "e4a-8", fromStageId: "ret-4a-ask-or-reject", toStageId: "ret-8-execute-action" },
+  { id: "e5-5a", fromStageId: "ret-d2-item-eligible", toStageId: "ret-5a-explain-policy", label: "No", color: "#dc2626" },
+  { id: "e5-6", fromStageId: "ret-d2-item-eligible", toStageId: "ret-d3-reason-for-return", label: "Yes", color: "#16a34a" },
+  { id: "e5a-8", fromStageId: "ret-5a-explain-policy", toStageId: "ret-8-execute-action" },
+  { id: "e6-6a", fromStageId: "ret-d3-reason-for-return", toStageId: "ret-6a-create-replacement", label: "Damaged product", color: "#16a34a" },
+  { id: "e6-6b", fromStageId: "ret-d3-reason-for-return", toStageId: "ret-6b-priority-replacement", label: "Wrong product", color: "#16a34a" },
+  { id: "e6-6c", fromStageId: "ret-d3-reason-for-return", toStageId: "ret-6c-standard-return", label: "Change of mind", color: "#16a34a" },
+  { id: "e6a-7", fromStageId: "ret-6a-create-replacement", toStageId: "ret-d4-auto-refund" },
+  { id: "e6b-7", fromStageId: "ret-6b-priority-replacement", toStageId: "ret-d4-auto-refund" },
+  { id: "e6c-7", fromStageId: "ret-6c-standard-return", toStageId: "ret-d4-auto-refund" },
+  { id: "e7-7a", fromStageId: "ret-d4-auto-refund", toStageId: "ret-7a-approve-auto", label: "Low-value, low-risk", color: "#16a34a" },
+  { id: "e7-7b", fromStageId: "ret-d4-auto-refund", toStageId: "ret-7b-human-approval", label: "High-value item", color: "#f36a10" },
+  { id: "e7-7c", fromStageId: "ret-d4-auto-refund", toStageId: "ret-7c-fraud-review", label: "Suspicious pattern", color: "#f36a10" },
+  { id: "e7a-8", fromStageId: "ret-7a-approve-auto", toStageId: "ret-8-execute-action" },
+  { id: "e7b-8", fromStageId: "ret-7b-human-approval", toStageId: "ret-8-execute-action" },
+  { id: "e7c-8", fromStageId: "ret-7c-fraud-review", toStageId: "ret-8-execute-action" },
+  { id: "e8-9", fromStageId: "ret-8-execute-action", toStageId: "ret-9-update-system" },
+  { id: "e9-10", fromStageId: "ret-9-update-system", toStageId: "ret-10-audit-trail" },
+  { id: "e10-11", fromStageId: "ret-10-audit-trail", toStageId: "ret-11-case-completed" },
 ];
 
 function createId(prefix: string) {
@@ -169,20 +659,92 @@ export default function DecisionCanvasPage() {
   const [projectSla, setProjectSla] = useState("");
   const [projectSlaUnit, setProjectSlaUnit] = useState("days");
   const [stages, setStages] = useState<CanvasStage[]>([]);
+  const [edges, setEdges] = useState<CanvasEdge[]>([]);
+  const [edgeLineStyle, setEdgeLineStyle] = useState<CanvasEdgeLineStyle>("smoothstep");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [showPropertyMenu, setShowPropertyMenu] = useState(false);
-  const [zoom, setZoom] = useState(100);
-  const [activeTool, setActiveTool] = useState<"select" | "pan">("select");
-  const [isPanning, setIsPanning] = useState(false);
   const [message, setMessage] = useState("");
   const [hydrated, setHydrated] = useState(false);
   const [versions, setVersions] = useState<CanvasVersion[]>([]);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [showExamplesMenu, setShowExamplesMenu] = useState(false);
+  const [showArrangeMenu, setShowArrangeMenu] = useState(false);
+  const [showLineStyleMenu, setShowLineStyleMenu] = useState(false);
+  const [wordWrap, setWordWrap] = useState(false);
   const [versionTags, setVersionTags] = useState<string[]>([]);
+  const [customTags, setCustomTags] = useState<string[]>([]);
+  const [showCustomTagInput, setShowCustomTagInput] = useState(false);
+  const [customTagInput, setCustomTagInput] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
-  const viewportRef = useRef<HTMLDivElement>(null);
-  const panStartRef = useRef<{ pointerId: number; x: number; y: number; scrollLeft: number; scrollTop: number } | null>(null);
+
+  const searchMatchSet = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return new Set<string>();
+
+    let decisionIndex = 0;
+    const matches = new Set<string>();
+
+    stages.forEach((stage, idx) => {
+      if (stage.iconKey === "decision") {
+        decisionIndex++;
+      }
+      const stageNumStr = String(idx + 1);
+      const stageNumPad = stageNumStr.padStart(2, "0");
+      const decisionTag = stage.iconKey === "decision" ? `d${decisionIndex}` : "";
+
+      const nameMatch = stage.name.toLowerCase().includes(query);
+      const typeMatch = stage.type.toLowerCase().includes(query);
+      const platformMatch = stage.platform.toLowerCase().includes(query);
+      const iconMatch = stage.iconKey.toLowerCase().includes(query);
+      const indexMatch =
+        query === stageNumStr ||
+        query === stageNumPad ||
+        query === `stage ${stageNumStr}` ||
+        query === `stage ${stageNumPad}` ||
+        (decisionTag && (query === decisionTag || query === `decision ${decisionIndex}`));
+
+      const propMatch = stage.properties.some((p) =>
+        p.name.toLowerCase().includes(query) ||
+        p.value.toLowerCase().includes(query) ||
+        (p.unit && p.unit.toLowerCase().includes(query)) ||
+        (p.currency && p.currency.toLowerCase().includes(query))
+      );
+
+      if (nameMatch || typeMatch || platformMatch || iconMatch || indexMatch || propMatch) {
+        matches.add(stage.id);
+      }
+    });
+
+    return matches;
+  }, [searchQuery, stages]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f") {
+        const target = e.target as HTMLElement | null;
+        if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) {
+          if (target === searchInputRef.current) return;
+        }
+        e.preventDefault();
+        searchInputRef.current?.focus();
+        searchInputRef.current?.select();
+      } else if (e.key === "Escape" && document.activeElement === searchInputRef.current) {
+        setSearchQuery("");
+        searchInputRef.current?.blur();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  const allTagOptions = useMemo(() => {
+    const combined = new Set([...versionTagOptions, ...customTags, ...versionTags]);
+    return Array.from(combined);
+  }, [customTags, versionTags]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -192,7 +754,7 @@ export default function DecisionCanvasPage() {
       setVersionTags(localVersions[0]?.tags ?? []);
       if (saved) {
         try {
-          const draft = JSON.parse(saved) as { name?: string; status?: CanvasStatus; environment?: CanvasEnvironment; goLiveDate?: string; budget?: string; budgetCurrency?: string; sla?: string; slaUnit?: string; stages?: CanvasStage[] };
+          const draft = JSON.parse(saved) as { name?: string; status?: CanvasStatus; environment?: CanvasEnvironment; goLiveDate?: string; budget?: string; budgetCurrency?: string; sla?: string; slaUnit?: string; stages?: CanvasStage[]; edges?: CanvasEdge[]; edgeLineStyle?: CanvasEdgeLineStyle };
           if (draft.name) setProcessName(draft.name);
           if (draft.status && statusOptions.some((option) => option.value === draft.status)) setProjectStatus(draft.status);
           if (draft.environment && environmentOptions.some((option) => option.value === draft.environment)) setEnvironment(draft.environment);
@@ -201,9 +763,12 @@ export default function DecisionCanvasPage() {
           if (draft.budgetCurrency) setBudgetCurrency(draft.budgetCurrency);
           if (draft.sla !== undefined) setProjectSla(draft.sla);
           if (draft.slaUnit) setProjectSlaUnit(draft.slaUnit);
+          if (draft.edgeLineStyle) setEdgeLineStyle(draft.edgeLineStyle);
           if (draft.stages?.length) {
-            setStages(draft.stages);
-            setSelectedId(draft.stages[0].id);
+            const normalizedStages = normalizeCanvasStages(draft.stages);
+            setStages(normalizedStages);
+            setSelectedId(null);
+            setEdges(normalizeCanvasEdges(normalizedStages, draft.edges));
           }
         } catch {
           // A stale local draft should never prevent the canvas from opening.
@@ -216,10 +781,11 @@ export default function DecisionCanvasPage() {
 
   useEffect(() => {
     if (!hydrated) return;
-    writeCanvasDraft({ name: processName, status: projectStatus, environment, goLiveDate, budget: projectBudget, budgetCurrency, sla: projectSla, slaUnit: projectSlaUnit, stages });
-  }, [budgetCurrency, environment, goLiveDate, hydrated, processName, projectBudget, projectSla, projectSlaUnit, projectStatus, stages]);
+    writeCanvasDraft({ name: processName, status: projectStatus, environment, goLiveDate, budget: projectBudget, budgetCurrency, sla: projectSla, slaUnit: projectSlaUnit, stages, edges, edgeLineStyle });
+  }, [budgetCurrency, edges, edgeLineStyle, environment, goLiveDate, hydrated, processName, projectBudget, projectSla, projectSlaUnit, projectStatus, stages]);
 
   const selectedStage = stages.find((stage) => stage.id === selectedId) ?? null;
+  const selectedEdge = edges.find((edge) => edge.id === selectedEdgeId) ?? null;
   const totalProperties = useMemo(() => stages.reduce((total, stage) => total + stage.properties.length, 0), [stages]);
   const totalCost = useMemo(() => stages.reduce((total, stage) => total + stage.properties.filter((property) => propertyKind(property) === "cost").reduce((sum, property) => sum + numericValue(property.value), 0), 0), [stages]);
   const totalLatencyMinutes = useMemo(() => stages.reduce((total, stage) => total + stage.properties.filter((property) => propertyKind(property) === "duration").reduce((sum, property) => sum + durationInMinutes(property), 0), 0), [stages]);
@@ -234,31 +800,100 @@ export default function DecisionCanvasPage() {
 
   function changeType(key: StageKind) {
     const next = stageTypes.find((item) => item.key === key) ?? stageTypes[0];
-    updateStage({ type: next.label, iconKey: next.key, color: next.color });
+    let nextName = selectedStage?.name;
+    if (key === "decision" && selectedStage && (!selectedStage.name || selectedStage.name.startsWith("New ") || selectedStage.name === "Untitled")) {
+      const decisionCount = stages.filter((s) => s.iconKey === "decision" && s.id !== selectedStage.id).length + 1;
+      nextName = `Decision d${decisionCount}`;
+    }
+    updateStage({ type: next.label, iconKey: next.key, color: next.color, ...(nextName ? { name: nextName } : {}) });
   }
 
   function addStage(kind: (typeof stageTypes)[number]) {
+    let x = 100;
+    let y = 100;
+    if (stages.length > 0) {
+      const refStage = selectedStage ?? stages.reduce((max, s) => ((s.x ?? 0) > (max.x ?? 0) ? s : max), stages[0]);
+      const refX = refStage.x ?? 0;
+      const refY = refStage.y ?? 0;
+      const refWidth = refStage.iconKey === "decision" ? 210 : 188;
+      x = refX + refWidth + 70;
+      y = refY;
+    }
+
+    const decisionCount = stages.filter((s) => s.iconKey === "decision").length + 1;
+    const defaultName = kind.key === "decision" ? `Decision d${decisionCount}` : `New ${kind.label.toLowerCase()}`;
+
     const next: CanvasStage = {
       id: createId("stage"),
-      name: `New ${kind.label.toLowerCase()}`,
+      name: defaultName,
       type: kind.label,
       platform: "Other",
       iconKey: kind.key,
       color: kind.color,
       properties: [],
+      x,
+      y,
     };
     setStages((current) => [...current, next]);
     setSelectedId(next.id);
     setShowAddMenu(false);
-    setMessage("Stage added to the process");
+    setMessage(kind.key === "decision" ? `Decision d${decisionCount} added to process` : "Stage added to the process");
   }
 
   function removeSelected() {
     if (!selectedStage) return;
     const next = stages.filter((stage) => stage.id !== selectedStage.id);
+    // Remove any edges that referenced the deleted stage
+    setEdges((prev) => prev.filter((e) => e.fromStageId !== selectedStage.id && e.toStageId !== selectedStage.id));
     setStages(next);
     setSelectedId(next[Math.max(0, stages.findIndex((stage) => stage.id === selectedStage.id) - 1)]?.id ?? null);
     setMessage("Stage removed");
+  }
+
+  // ── Edge handlers ──────────────────────────────────────────────────────────
+
+  function handleEdgeCreated(edge: CanvasEdge) {
+    setEdges((prev) => [...prev, edge]);
+  }
+
+  function handleEdgeDeleted(id: string) {
+    setEdges((prev) => prev.filter((e) => e.id !== id));
+    if (selectedEdgeId === id) setSelectedEdgeId(null);
+  }
+
+  function updateEdge(id: string, patch: Partial<CanvasEdge>) {
+    setEdges((prev) => prev.map((e) => e.id === id ? { ...e, ...patch } : e));
+  }
+
+  function handleStagePositionsChange(updates: { id: string; x: number; y: number }[]) {
+    setStages((prev) => prev.map((s) => {
+      const update = updates.find((u) => u.id === s.id);
+      return update ? { ...s, x: update.x, y: update.y } : s;
+    }));
+  }
+
+  function handleAutoArrange(rankdir: "TB" | "LR") {
+    const arranged = getAutoLayout(stages, edges, rankdir, 85, 100);
+    setStages((current) =>
+      current.map((stage) => {
+        const pos = arranged.get(stage.id);
+        return pos ? { ...stage, x: pos.x, y: pos.y } : stage;
+      }),
+    );
+    setShowArrangeMenu(false);
+    setMessage(`Auto-arrange applied (${rankdir === "TB" ? "Vertical" : "Horizontal"})`);
+  }
+
+  function handleSpaciousArrange() {
+    const arranged = getAutoLayout(stages, edges, "LR", 115, 140);
+    setStages((current) =>
+      current.map((stage) => {
+        const pos = arranged.get(stage.id);
+        return pos ? { ...stage, x: pos.x, y: pos.y } : stage;
+      }),
+    );
+    setShowArrangeMenu(false);
+    setMessage("Spacious auto-arrange applied (zero overlap)");
   }
 
   function addProperty(definition?: (typeof propertyPresets)[number]) {
@@ -294,7 +929,7 @@ export default function DecisionCanvasPage() {
   }
 
   function recordVersion(summary: string) {
-    const draft = { name: processName.trim(), status: projectStatus, environment, goLiveDate, budget: projectBudget, budgetCurrency, sla: projectSla, slaUnit: projectSlaUnit, stages };
+    const draft = { name: processName.trim(), status: projectStatus, environment, goLiveDate, budget: projectBudget, budgetCurrency, sla: projectSla, slaUnit: projectSlaUnit, stages, edges, edgeLineStyle };
     const next = nextCanvasVersion(versions, draft, summary, versionTags);
     const updated = [next, ...versions];
     writeCanvasDraft(draft);
@@ -333,7 +968,7 @@ export default function DecisionCanvasPage() {
       return;
     }
     try {
-      const payload = JSON.parse(await file.text()) as { format?: string; canvas?: { name?: string; status?: CanvasStatus; environment?: CanvasEnvironment; goLiveDate?: string; budget?: string; budgetCurrency?: string; sla?: string; slaUnit?: string; stages?: CanvasStage[] }; versions?: CanvasVersion[] };
+      const payload = JSON.parse(await file.text()) as { format?: string; canvas?: { name?: string; status?: CanvasStatus; environment?: CanvasEnvironment; goLiveDate?: string; budget?: string; budgetCurrency?: string; sla?: string; slaUnit?: string; stages?: CanvasStage[]; edges?: CanvasEdge[]; edgeLineStyle?: CanvasEdgeLineStyle }; versions?: CanvasVersion[] };
       const draft = payload.canvas;
       if (payload.format !== "decla" || !draft || !Array.isArray(draft.stages)) throw new Error("Invalid .decla file");
       const importedStatus = draft.status && statusOptions.some((option) => option.value === draft.status) ? draft.status : "draft";
@@ -345,12 +980,16 @@ export default function DecisionCanvasPage() {
       setBudgetCurrency(draft.budgetCurrency ?? "USD");
       setProjectSla(draft.sla ?? "");
       setProjectSlaUnit(draft.slaUnit ?? "days");
-      setStages(draft.stages);
-      setSelectedId(draft.stages[0]?.id ?? null);
-      const importedVersions = Array.isArray(payload.versions) ? payload.versions.map((version) => ({ ...version, environment: version.environment ?? "development" as const, goLiveDate: version.goLiveDate ?? "", tags: Array.isArray(version.tags) ? version.tags : [] })) : [];
+      if (draft.edgeLineStyle) setEdgeLineStyle(draft.edgeLineStyle);
+      const normalizedStages = normalizeCanvasStages(draft.stages);
+      const normalizedEdges = normalizeCanvasEdges(normalizedStages, draft.edges);
+      setStages(normalizedStages);
+      setSelectedId(null);
+      setEdges(normalizedEdges);
+      const importedVersions = Array.isArray(payload.versions) ? payload.versions.map((version) => ({ ...version, environment: version.environment ?? "development" as const, goLiveDate: version.goLiveDate ?? "", tags: Array.isArray(version.tags) ? version.tags : [], stages: normalizeCanvasStages(version.stages ?? []), edges: normalizeCanvasEdges(version.stages ?? [], version.edges) })) : [];
       setVersions(importedVersions);
       setVersionTags(importedVersions[0]?.tags ?? []);
-      writeCanvasDraft({ name: draft.name ?? "", status: importedStatus, environment: draft.environment ?? "development", goLiveDate: draft.goLiveDate ?? "", budget: draft.budget ?? "", budgetCurrency: draft.budgetCurrency ?? "USD", sla: draft.sla ?? "", slaUnit: draft.slaUnit ?? "days", stages: draft.stages });
+      writeCanvasDraft({ name: draft.name ?? "", status: importedStatus, environment: draft.environment ?? "development", goLiveDate: draft.goLiveDate ?? "", budget: draft.budget ?? "", budgetCurrency: draft.budgetCurrency ?? "USD", sla: draft.sla ?? "", slaUnit: draft.slaUnit ?? "days", stages: normalizedStages, edges: normalizedEdges });
       writeCanvasVersions(importedVersions);
       setMessage(".decla file imported");
     } catch {
@@ -359,7 +998,20 @@ export default function DecisionCanvasPage() {
   }
 
   function toggleVersionTag(tag: string) {
-    setVersionTags((current) => current.includes(tag) ? current.filter((item) => item !== tag) : [...current, tag]);
+    setVersionTags((current) => (current.includes(tag) ? [] : [tag]));
+  }
+
+  function handleAddCustomTag(event?: React.FormEvent) {
+    if (event) event.preventDefault();
+    const trimmed = customTagInput.trim();
+    if (!trimmed) return;
+    if (!versionTagOptions.includes(trimmed) && !customTags.includes(trimmed)) {
+      setCustomTags((current) => [...current, trimmed]);
+    }
+    setVersionTags([trimmed]);
+    setCustomTagInput("");
+    setShowCustomTagInput(false);
+    setMessage(`Version tag "${trimmed}" selected`);
   }
 
   function exportFileName(extension: string) {
@@ -371,12 +1023,61 @@ export default function DecisionCanvasPage() {
     return value.replace(/[&<>'"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&apos;", '"': "&quot;" })[character] ?? character);
   }
 
-  function flowSvg() {
-    const cardWidth = 180;
-    const cardGap = 40;
-    const leftPad = 40;
-    const stagesWidth = stages.length * (cardWidth + cardGap);
-    const width = Math.max(960, stagesWidth + leftPad * 2);
+function getNodeHandlePos(stage: CanvasStage, handleId?: string, isTarget?: boolean) {
+  const isDecision = stage.iconKey === "decision";
+  const nw = isDecision ? 210 : 188;
+  const nh = isDecision ? 210 : 190;
+  const nx = stage.x ?? 0;
+  const ny = stage.y ?? 0;
+
+  if (isTarget) {
+    return { x: nx, y: ny + nh / 2 };
+  }
+  if (isDecision && handleId === "bottom") {
+    return { x: nx + nw / 2, y: ny + nh };
+  }
+  return { x: nx + nw, y: ny + nh / 2 };
+}
+
+function getEdgeSvgPath(
+  sx: number,
+  sy: number,
+  tx: number,
+  ty: number,
+  lineType: string = "smoothstep",
+) {
+  if (lineType === "straight") {
+    return `M ${sx} ${sy} L ${tx} ${ty}`;
+  }
+
+  if (lineType === "bezier") {
+    const dx = Math.abs(tx - sx) * 0.5;
+    return `M ${sx} ${sy} C ${sx + dx} ${sy}, ${tx - dx} ${ty}, ${tx} ${ty}`;
+  }
+
+  if (sx < tx) {
+    const midX = Math.round(sx + (tx - sx) / 2);
+    if (Math.abs(sy - ty) < 4) {
+      return `M ${sx} ${sy} L ${tx} ${ty}`;
+    }
+    const r = lineType === "step" ? 0 : Math.min(10, Math.abs(midX - sx), Math.abs(ty - sy) / 2);
+    const sySign = ty > sy ? 1 : -1;
+    if (r > 0) {
+      return `M ${sx} ${sy} L ${midX - r} ${sy} Q ${midX} ${sy} ${midX} ${sy + r * sySign} L ${midX} ${ty - r * sySign} Q ${midX} ${ty} ${midX + r} ${ty} L ${tx} ${ty}`;
+    }
+    return `M ${sx} ${sy} H ${midX} V ${ty} H ${tx}`;
+  } else {
+    const midY = Math.round(sy + (ty - sy) / 2);
+    const r = lineType === "step" ? 0 : Math.min(10, Math.abs(midY - sy), Math.abs(tx - sx) / 2);
+    if (r > 0 && Math.abs(tx - sx) > r * 2) {
+      const sxSign = tx > sx ? 1 : -1;
+      return `M ${sx} ${sy} L ${sx} ${midY - r} Q ${sx} ${midY} ${sx + r * sxSign} ${midY} L ${tx - r * sxSign} ${midY} Q ${tx} ${midY} ${tx} ${midY + r} L ${tx} ${ty}`;
+    }
+    return `M ${sx} ${sy} V ${midY} H ${tx} V ${ty}`;
+  }
+}
+
+  function flowSvg(includeFullProperties: boolean = false) {
     const title = escapeXml(processName.trim() || "Untitled project");
 
     // Project property summary row
@@ -392,46 +1093,157 @@ export default function DecisionCanvasPage() {
       `${stages.length} stage${stages.length !== 1 ? "s" : ""} · ${totalProperties} propert${totalProperties !== 1 ? "ies" : "y"}`,
     ].join("   ·   ");
 
-    const headerH = 80;
-    const propsH = 32;
-    const canvasY = headerH + propsH + 16;
-    const cardH = 164;
-    const totalH = canvasY + cardH + 40;
+    // Calculate 2D bounding box
+    const pad = 60;
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
 
-    const cards = stages.map((stage, index) => {
-      const x = leftPad + index * (cardWidth + cardGap);
-      const cy = canvasY + 42;
-      const icon = `${window.location.origin}/icons/stages/${stage.iconKey}.svg`;
-      const nextX = x + cardWidth;
-      const connector = index < stages.length - 1
-        ? `<line x1="${nextX}" y1="${canvasY + cardH / 2}" x2="${nextX + cardGap}" y2="${canvasY + cardH / 2}" stroke="#c5ccd6" stroke-width="1.5"/><path d="M ${nextX + cardGap - 6} ${canvasY + cardH / 2 - 5} L ${nextX + cardGap} ${canvasY + cardH / 2} L ${nextX + cardGap - 6} ${canvasY + cardH / 2 + 5}" fill="none" stroke="#a9b2bc" stroke-width="1.5"/>`
-        : "";
+    stages.forEach((s) => {
+      const isDecision = s.iconKey === "decision";
+      const w = isDecision ? 210 : 188;
+      const extraH = includeFullProperties && s.properties.length > 0 ? s.properties.length * 16 : 0;
+      const h = isDecision ? 210 : 190 + extraH;
+      const x = s.x ?? 0;
+      const y = s.y ?? 0;
+      minX = Math.min(minX, x);
+      minY = Math.min(minY, y);
+      maxX = Math.max(maxX, x + w);
+      maxY = Math.max(maxY, y + h);
+    });
+
+    if (!Number.isFinite(minX)) {
+      minX = 0; minY = 0; maxX = 960; maxY = 600;
+    }
+
+    const headerH = 90;
+    const viewMinX = Math.round(minX - pad);
+    const viewMinY = Math.round(minY - headerH - pad);
+    const viewWidth = Math.round(Math.max(960, (maxX - minX) + pad * 2));
+    const viewHeight = Math.round((maxY - minY) + headerH + pad * 2);
+
+    // Render Edges
+    const edgesSvg = edges.map((edge) => {
+      const fromStage = stages.find((s) => s.id === edge.fromStageId);
+      const toStage = stages.find((s) => s.id === edge.toStageId);
+      if (!fromStage || !toStage) return "";
+
+      const fromPos = getNodeHandlePos(fromStage, edge.fromHandle, false);
+      const toPos = getNodeHandlePos(toStage, edge.toHandle, true);
+
+      const pathD = getEdgeSvgPath(fromPos.x, fromPos.y, toPos.x, toPos.y, edge.lineType ?? edgeLineStyle);
+      const color = edge.color ?? "#94a3b8";
+
+      const midX = fromPos.x + (toPos.x - fromPos.x) / 2;
+      const midY = fromPos.y + (toPos.y - fromPos.y) / 2;
+
+      const labelSvg = edge.label ? [
+        `<g transform="translate(${midX}, ${midY})">`,
+        `<rect x="-34" y="-10" width="68" height="20" rx="4" fill="#ffffff" stroke="${color}" stroke-width="1.2"/>`,
+        `<text x="0" y="3.5" text-anchor="middle" fill="#1e293b" font-size="9" font-family="Arial, sans-serif" font-weight="700">${escapeXml(edge.label)}</text>`,
+        `</g>`,
+      ].join("") : "";
+
+      const arrowSvg = `<polygon points="${toPos.x - 7},${toPos.y - 4} ${toPos.x},${toPos.y} ${toPos.x - 7},${toPos.y + 4}" fill="${color}"/>`;
+
       return [
-        connector,
+        `<path d="${pathD}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round"/>`,
+        arrowSvg,
+        labelSvg,
+      ].join("");
+    }).join("");
+
+    // Render Nodes
+    const nodesSvg = stages.map((stage) => {
+      const index = stages.findIndex((s) => s.id === stage.id);
+      const isDecision = stage.iconKey === "decision";
+      const x = stage.x ?? 0;
+      const y = stage.y ?? 0;
+      const iconUrl = `${window.location.origin}/icons/stages/${stage.iconKey}.svg`;
+
+      if (isDecision) {
+        const decisionIndex = stages.filter((s) => s.iconKey === "decision").findIndex((s) => s.id === stage.id) + 1;
+        const cx = x + 105;
+        const cy = y + 105;
+        const innerPts = `${cx},${cy - 74} ${cx + 74},${cy} ${cx},${cy + 74} ${cx - 74},${cy}`;
+
+        const decisionPropsRender = includeFullProperties && stage.properties.length > 0
+          ? stage.properties.map((p, pi) => {
+              const kind = propertyKind(p);
+              let valFormatted = p.value || "—";
+              if (kind === "cost" && p.value) valFormatted = `${p.currency || budgetCurrency} ${Number(p.value).toLocaleString()}`;
+              else if (kind === "duration" && p.value) valFormatted = `${p.value} ${p.unit || "mins"}`;
+              const line = `${escapeXml(p.name)}: ${escapeXml(valFormatted)}`;
+              return `<text x="${cx}" y="${cy + 34 + pi * 13}" text-anchor="middle" fill="#475569" font-size="8" font-family="Arial, sans-serif" font-weight="600">${line.length > 24 ? line.slice(0, 22) + "…" : line}</text>`;
+            }).join("")
+          : (stage.properties.length > 0 ? `<rect x="${cx - 24}" y="${cy + 32}" width="48" height="14" rx="3" fill="#f1f5f9"/><text x="${cx}" y="${cy + 42}" text-anchor="middle" fill="#64748b" font-size="8" font-family="Arial, sans-serif" font-weight="700">${stage.properties.length} ${stage.properties.length === 1 ? "prop" : "props"}</text>` : "");
+
+        return [
+          `<g>`,
+          `<polygon points="${innerPts}" fill="#fff7ed" stroke="${stage.color}" stroke-width="2.5"/>`,
+          `<circle cx="${cx - 105}" cy="${cy}" r="4" fill="#cbd5e1" stroke="#fff" stroke-width="1.5"/>`,
+          `<circle cx="${cx + 105}" cy="${cy}" r="4" fill="#cbd5e1" stroke="#fff" stroke-width="1.5"/>`,
+          `<circle cx="${cx}" cy="${cy + 105}" r="4" fill="#cbd5e1" stroke="#fff" stroke-width="1.5"/>`,
+          `<text x="${cx}" y="${cy - 48}" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="Arial, sans-serif" font-weight="800">d${decisionIndex}</text>`,
+          `<circle cx="${cx}" cy="${cy - 12}" r="17" fill="${stage.color}" fill-opacity=".12"/>`,
+          `<image href="${iconUrl}" x="${cx - 12}" y="${cy - 24}" width="24" height="24"/>`,
+          `<text x="${cx}" y="${cy + 22}" text-anchor="middle" fill="#1e293b" font-size="11" font-family="Arial, sans-serif" font-weight="700">${escapeXml(stage.name || "Untitled")}</text>`,
+          decisionPropsRender,
+          `</g>`,
+        ].join("");
+      }
+
+      const extraH = includeFullProperties && stage.properties.length > 0 ? stage.properties.length * 16 + 6 : 0;
+      const cardH = 190 + extraH;
+
+      const propsRender = includeFullProperties && stage.properties.length > 0
+        ? [
+            `<rect x="${x + 12}" y="${y + 134}" width="164" height="${stage.properties.length * 16 + 6}" rx="5" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>`,
+            ...stage.properties.map((p, pi) => {
+              const kind = propertyKind(p);
+              let valFormatted = p.value || "—";
+              if (kind === "cost" && p.value) valFormatted = `${p.currency || budgetCurrency} ${Number(p.value).toLocaleString()}`;
+              else if (kind === "duration" && p.value) valFormatted = `${p.value} ${p.unit || "mins"}`;
+              const line = `${escapeXml(p.name)}: ${escapeXml(valFormatted)}`;
+              return `<text x="${x + 18}" y="${y + 147 + pi * 16}" fill="#334155" font-size="8.5" font-family="Arial, sans-serif" font-weight="600">${line.length > 27 ? line.slice(0, 25) + "…" : line}</text>`;
+            })
+          ].join("")
+        : (stage.properties.length > 0 ? `<rect x="${x + 16}" y="${y + 140}" width="78" height="16" rx="4" fill="#f1f5f9"/><text x="${x + 22}" y="${y + 152}" fill="#64748b" font-size="8.5" font-family="Arial, sans-serif" font-weight="700">${stage.properties.length} ${stage.properties.length === 1 ? "property" : "properties"}</text>` : "");
+
+      return [
         `<g>`,
-        `<rect x="${x}" y="${canvasY}" width="${cardWidth}" height="${cardH}" rx="9" fill="#fff" stroke="${stage.color}" stroke-width="1.5"/>`,
-        `<rect x="${x}" y="${canvasY}" width="${cardWidth}" height="3" rx="1.5" fill="${stage.color}"/>`,
-        `<text x="${x + 12}" y="${canvasY + 20}" fill="#a0a9b4" font-size="9" font-family="Arial, sans-serif" font-weight="700">0${index + 1}</text>`,
-        `<circle cx="${x + 30}" cy="${cy}" r="18" fill="${stage.color}" fill-opacity=".1"/>`,
-        `<image href="${icon}" x="${x + 17}" y="${cy - 13}" width="24" height="24"/>`,
-        `<text x="${x + 12}" y="${cy + 34}" fill="#1e2a3a" font-size="12" font-family="Arial, sans-serif" font-weight="700">${escapeXml(stage.name || "Untitled")}</text>`,
-        `<text x="${x + 12}" y="${cy + 51}" fill="${stage.color}" font-size="9" font-family="Arial, sans-serif" font-weight="700">${escapeXml(stage.type)}</text>`,
-        `<text x="${x + 12}" y="${cy + 66}" fill="#8a93a2" font-size="9" font-family="Arial, sans-serif">${escapeXml(stage.platform)}</text>`,
-        stage.properties.length > 0 ? `<rect x="${x + 12}" y="${cy + 75}" width="${Math.min(cardWidth - 24, stage.properties.length * 10 + 32)}" height="13" rx="3" fill="#f2f3f6"/><text x="${x + 18}" y="${cy + 85}" fill="#7d8797" font-size="8" font-family="Arial, sans-serif" font-weight="700">${stage.properties.length} ${stage.properties.length === 1 ? "property" : "properties"}</text>` : "",
+        `<rect x="${x}" y="${y}" width="188" height="${cardH}" rx="12" fill="#ffffff" stroke="${stage.color}" stroke-width="1.8"/>`,
+        `<rect x="${x}" y="${y}" width="188" height="4" rx="2" fill="${stage.color}"/>`,
+        `<circle cx="${x}" cy="${y + 95}" r="4" fill="#cbd5e1" stroke="#fff" stroke-width="1.5"/>`,
+        `<circle cx="${x + 188}" cy="${y + 95}" r="4" fill="#cbd5e1" stroke="#fff" stroke-width="1.5"/>`,
+        `<text x="${x + 16}" y="${y + 24}" fill="#94a3b8" font-size="9" font-family="Arial, sans-serif" font-weight="800">${String(index + 1).padStart(2, "0")}</text>`,
+        `<circle cx="${x + 32}" cy="${y + 52}" r="17" fill="${stage.color}" fill-opacity=".12"/>`,
+        `<image href="${iconUrl}" x="${x + 20}" y="${y + 40}" width="24" height="24"/>`,
+        `<text x="${x + 16}" y="${y + 94}" fill="#1e293b" font-size="12" font-family="Arial, sans-serif" font-weight="700">${escapeXml(stage.name || "Untitled")}</text>`,
+        `<text x="${x + 16}" y="${y + 112}" fill="${stage.color}" font-size="9.5" font-family="Arial, sans-serif" font-weight="700">${escapeXml(stage.type)}</text>`,
+        `<text x="${x + 16}" y="${y + 126}" fill="#64748b" font-size="9" font-family="Arial, sans-serif">${escapeXml(stage.platform)}</text>`,
+        propsRender,
         `</g>`,
       ].join("");
     }).join("");
 
+    const headerX = viewMinX + pad;
+    const headerY = viewMinY + pad / 2;
+    const propSummaryY = headerY + 42;
+
     return [
-      `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${width}" height="${totalH}" viewBox="0 0 ${width} ${totalH}">`,
-      `<rect width="100%" height="100%" fill="#f8f9fb"/>`,
-      // Project name
-      `<text x="${leftPad}" y="38" fill="#1a2233" font-size="20" font-family="Arial, sans-serif" font-weight="700">${title}</text>`,
-      // Properties summary bar
-      `<rect x="${leftPad}" y="${headerH}" width="${width - leftPad * 2}" height="${propsH}" rx="6" fill="#fff" stroke="#e1e4e9"/>`,
-      `<text x="${leftPad + 14}" y="${headerH + 21}" fill="#6b7585" font-size="9.5" font-family="Arial, sans-serif">${escapeXml(propSummary)}</text>`,
-      // Stages
-      stages.length > 0 ? cards : `<text x="${leftPad}" y="${canvasY + 40}" fill="#a0a9b4" font-size="13" font-family="Arial, sans-serif">No stages added yet.</text>`,
+      `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${viewWidth}" height="${viewHeight}" viewBox="${viewMinX} ${viewMinY} ${viewWidth} ${viewHeight}">`,
+      `<defs>`,
+      `<pattern id="canvas-grid" width="18" height="18" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="0.8" fill="#cbd5e1"/></pattern>`,
+      `</defs>`,
+      `<rect x="${viewMinX}" y="${viewMinY}" width="${viewWidth}" height="${viewHeight}" fill="#f8fafc"/>`,
+      `<rect x="${viewMinX}" y="${viewMinY}" width="${viewWidth}" height="${viewHeight}" fill="url(#canvas-grid)"/>`,
+      `<text x="${headerX}" y="${headerY + 24}" fill="#0f172a" font-size="20" font-family="Arial, sans-serif" font-weight="700">${title}</text>`,
+      `<rect x="${headerX}" y="${propSummaryY}" width="${viewWidth - pad * 2}" height="32" rx="6" fill="#ffffff" stroke="#e2e8f0"/>`,
+      `<text x="${headerX + 14}" y="${propSummaryY + 20}" fill="#64748b" font-size="9.5" font-family="Arial, sans-serif">${escapeXml(propSummary)}</text>`,
+      edgesSvg,
+      stages.length > 0 ? nodesSvg : `<text x="${headerX}" y="${headerY + 100}" fill="#94a3b8" font-size="13" font-family="Arial, sans-serif">No stages added yet.</text>`,
       `</svg>`,
     ].join("");
   }
@@ -470,7 +1282,7 @@ export default function DecisionCanvasPage() {
         link.download = exportFileName("png");
         link.click();
         URL.revokeObjectURL(pngUrl);
-        setMessage("PNG exported");
+      setMessage("PNG exported");
       }, "image/png");
       URL.revokeObjectURL(svgUrl);
     };
@@ -482,17 +1294,103 @@ export default function DecisionCanvasPage() {
     setShowExportMenu(false);
   }
 
-  function loadExample() {
-    setStages(seedStages);
-    setSelectedId(seedStages[2].id);
-    setMessage("Example process loaded");
+  function flowHtml() {
+    const title = escapeXml(processName.trim() || "Untitled project");
+    const svgContent = flowSvg(true);
+
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${title} - 2D Decision Canvas</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #f8fafc; color: #0f172a; margin: 0; padding: 24px; }
+    .container { max-width: 1300px; margin: 0 auto; }
+    .header-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid #e2e8f0; }
+    .doc-title { font-size: 22px; font-weight: 800; color: #0f172a; margin: 0; }
+    .doc-meta { font-size: 12px; color: #64748b; font-weight: 600; }
+    .canvas-container { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; overflow-x: auto; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    .canvas-container svg { width: 100%; height: auto; display: block; }
+    @media print { body { background: #ffffff; padding: 0; } .canvas-container { border: 0; box-shadow: none; } }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header-row">
+      <h1 class="doc-title">${title}</h1>
+      <span class="doc-meta">${stages.length} stages · ${totalProperties} properties</span>
+    </div>
+    <div class="canvas-container">
+      ${svgContent}
+    </div>
+  </div>
+</body>
+</html>`;
   }
 
-  function clearCanvas() {
+  function exportHtml() {
+    const blob = new Blob([flowHtml()], { type: "text/html;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = exportFileName("html");
+    link.click();
+    URL.revokeObjectURL(url);
+    setShowExportMenu(false);
+    setMessage("HTML document exported");
+  }
+
+  function loadExample(exampleKey: "return-request" | "forecast" = "return-request") {
+    if (exampleKey === "return-request") {
+      setStages(returnRequestSeedStages);
+      setSelectedId(null);
+      setEdges(returnRequestSeedEdges);
+      setProcessName("Customer return request workflow");
+      setProjectStatus("approved");
+      setEnvironment("production");
+      setGoLiveDate("2026-09-01");
+      setProjectBudget("15000");
+      setBudgetCurrency("USD");
+      setProjectSla("24");
+      setProjectSlaUnit("hours");
+      setVersionTags(["Approved"]);
+      setMessage("Customer return request example loaded");
+    } else {
+      setStages(seedStages);
+      setSelectedId(null);
+      setEdges(normalizeCanvasEdges(seedStages, seedEdges));
+      setProcessName("Weekly forecast analysis AI system");
+      setProjectStatus("under-review");
+      setEnvironment("staging");
+      setGoLiveDate("");
+      setProjectBudget("50000");
+      setBudgetCurrency("USD");
+      setProjectSla("4");
+      setProjectSlaUnit("hours");
+      setVersionTags(["Proposed"]);
+      setMessage("Weekly forecast analysis example loaded");
+    }
+  }
+
+  function clearCanvasOnly() {
+    if (!stages.length && !edges.length) return;
+    if (window.confirm("Clear canvas elements (stages and connections)? Project properties will be preserved.")) {
+      setStages([]);
+      setEdges([]);
+      setSelectedId(null);
+      setSelectedEdgeId(null);
+      setMessage("Canvas cleared");
+    }
+  }
+
+  function clearWorkspace() {
     const hasWorkspaceContent = Boolean(processName || projectStatus !== "draft" || environment !== "development" || goLiveDate || projectBudget || projectSla || versionTags.length || stages.length || versions.length);
     if (!hasWorkspaceContent || window.confirm("Clear this entire decision workspace, including saved versions?")) {
       setStages([]);
+      setEdges([]);
       setSelectedId(null);
+      setSelectedEdgeId(null);
       setProcessName("");
       setProjectStatus("draft");
       setEnvironment("development");
@@ -503,6 +1401,7 @@ export default function DecisionCanvasPage() {
       setProjectSlaUnit("days");
       setVersionTags([]);
       setVersions([]);
+      setEdgeLineStyle("smoothstep");
       writeCanvasVersions([]);
       window.localStorage.removeItem(CANVAS_STORAGE_KEY);
       setShowAddMenu(false);
@@ -510,69 +1409,61 @@ export default function DecisionCanvasPage() {
     }
   }
 
-  function beginPan(event: ReactPointerEvent<HTMLDivElement>) {
-    if (activeTool !== "pan" || event.button !== 0 || !viewportRef.current) return;
-    const viewport = viewportRef.current;
-    panStartRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, scrollLeft: viewport.scrollLeft, scrollTop: viewport.scrollTop };
-    viewport.setPointerCapture(event.pointerId);
-    setIsPanning(true);
-    event.preventDefault();
-  }
-
-  function movePan(event: ReactPointerEvent<HTMLDivElement>) {
-    const start = panStartRef.current;
-    const viewport = viewportRef.current;
-    if (!start || !viewport || start.pointerId !== event.pointerId) return;
-    viewport.scrollLeft = start.scrollLeft - (event.clientX - start.x);
-    viewport.scrollTop = start.scrollTop - (event.clientY - start.y);
-  }
-
-  function endPan(event: ReactPointerEvent<HTMLDivElement>) {
-    if (panStartRef.current?.pointerId !== event.pointerId) return;
-    if (viewportRef.current?.hasPointerCapture(event.pointerId)) viewportRef.current.releasePointerCapture(event.pointerId);
-    panStartRef.current = null;
-    setIsPanning(false);
-  }
+  // Pan is now handled natively by React Flow.
 
   return (
-    <AppShell status="ready" action={<button className="toolbar-save" onClick={saveDeclaFile}>Save to File <span>⌘ S</span></button>}>
+    <AppShell>
       <div className="process-page">
         <header className="process-heading">
           <div>
-            <div className="eyebrow-row"><span className="process-eyebrow">DECISION CANVAS</span>{versions[0] && <span className="version-mini">v{versions[0].version}</span>}</div>
-            <div className="process-title-row"><input className="process-title-input" value={processName} onChange={(event) => setProcessName(event.target.value)} placeholder="Untitled decision canvas" aria-label="Decision canvas name" /></div>
-            <div className="version-tag-bar"><span>VERSION TAGS <em>Optional</em></span><div>{versionTagOptions.map((tag) => <button key={tag} className={versionTags.includes(tag) ? "selected" : ""} onClick={() => toggleVersionTag(tag)}>{tag}</button>)}</div></div>
+            <div className="process-title-row"><input className="process-title-input" value={processName} onChange={(event) => setProcessName(event.target.value)} placeholder="Untitled decision canvas" aria-label="Decision canvas name" />{versions[0] && <span className="version-mini">v{versions[0].version}</span>}</div>
+            <div className="version-tag-bar">
+              <span>VERSION TAG <em>Optional</em></span>
+              <div>
+                {allTagOptions.map((tag) => <button key={tag} type="button" className={versionTags.includes(tag) ? "selected" : ""} onClick={() => toggleVersionTag(tag)}>{tag}</button>)}
+                {!showCustomTagInput ? (
+                  <button type="button" className="add-custom-tag-btn" onClick={() => setShowCustomTagInput(true)}>+ Tag</button>
+                ) : (
+                  <form className="custom-tag-form" onSubmit={handleAddCustomTag}>
+                    <input className="custom-tag-input" value={customTagInput} onChange={(event) => setCustomTagInput(event.target.value)} placeholder="Custom tag..." autoFocus onKeyDown={(event) => { if (event.key === "Escape") { setShowCustomTagInput(false); setCustomTagInput(""); } }} />
+                    <button type="submit" className="custom-tag-save">Add</button>
+                    <button type="button" className="custom-tag-cancel" onClick={() => { setShowCustomTagInput(false); setCustomTagInput(""); }}>×</button>
+                  </form>
+                )}
+              </div>
+            </div>
           </div>
           <div className="process-heading-actions">
-            <div className="header-status-group"><span className="local-pill"><i /> Local draft</span><label className={`project-status-control header-project-status ${projectStatus}`}><span>PROJECT STATUS</span><SearchableSelect value={projectStatus} options={statusOptions} onChange={(value) => setProjectStatus(value as CanvasStatus)} ariaLabel="Project status" /></label></div><button className="secondary-button" onClick={() => setMessage("Share link copied to clipboard")}>Share</button>
-            <input ref={importInputRef} className="hidden-file-input" type="file" accept=".decla" onChange={handleImport} /><button className="secondary-button" onClick={() => importInputRef.current?.click()}>Import file</button><button className="secondary-button" onClick={saveDraft}>Save version</button><button className="primary-button" onClick={saveDeclaFile}>Save to File</button><div className="export-menu-wrap"><button className="secondary-button" onClick={() => setShowExportMenu((open) => !open)}>Export <span className="button-caret">⌄</span></button>{showExportMenu && <div className="floating-menu export-menu"><small>EXPORT CANVAS</small><button onClick={exportSvg}>SVG image <span>.svg</span></button><button onClick={exportPng}>PNG image <span>.png</span></button></div>}</div><button className="clear-canvas-button" onClick={clearCanvas} disabled={!Boolean(processName || projectStatus !== "draft" || environment !== "development" || goLiveDate || projectBudget || projectSla || versionTags.length || stages.length || versions.length)}>Clear workspace</button>
+            <div className="header-status-group"><label className={`project-status-control header-project-status ${projectStatus}`}><span>PROJECT STATUS</span><SearchableSelect value={projectStatus} options={statusOptions} onChange={(value) => setProjectStatus(value as CanvasStatus)} ariaLabel="Project status" /></label></div>
+            <div className="export-menu-wrap"><button className="secondary-button" onClick={() => setShowExamplesMenu((open) => !open)}>Examples <span className="button-caret">⌄</span></button>{showExamplesMenu && <div className="floating-menu export-menu"><small>LOAD EXAMPLE WORKFLOW</small><button onClick={() => { loadExample("return-request"); setShowExamplesMenu(false); }}>Customer return request</button><button onClick={() => { loadExample("forecast"); setShowExamplesMenu(false); }}>Weekly forecast analysis</button></div>}</div>
+            <button className="secondary-button" onClick={() => setMessage("Share link copied to clipboard")}>Share</button>
+            <button className="secondary-button" onClick={saveDraft}>Save version</button>
+            <input ref={importInputRef} className="hidden-file-input" type="file" accept=".decla" onChange={handleImport} /><button className="secondary-button" onClick={() => importInputRef.current?.click()}>Import file</button><button className="primary-button" onClick={saveDeclaFile}>Save to File</button><div className="export-menu-wrap"><button className="secondary-button" onClick={() => setShowExportMenu((open) => !open)}>Export <span className="button-caret">⌄</span></button>{showExportMenu && <div className="floating-menu export-menu"><small>EXPORT CANVAS</small><button onClick={exportSvg}>SVG image <span>.svg</span></button><button onClick={exportPng}>PNG image <span>.png</span></button></div>}</div><button className="clear-canvas-button" onClick={clearWorkspace} disabled={!Boolean(processName || projectStatus !== "draft" || environment !== "development" || goLiveDate || projectBudget || projectSla || versionTags.length || stages.length || versions.length)}>Clear workspace</button>
           </div>
         </header>
 
         <section className="project-properties-strip" aria-label="Project properties">
-          <div className="project-properties-title"><span>PROJECT</span><strong>PROPERTIES</strong></div>
           <div className="project-property-metric editable-metric">
-            <span>PROJECT BUDGET / RUN</span>
+            <span>BUDGET</span>
             <div className="prop-control-group">
               <input type="number" min="0" step="1" value={projectBudget} onChange={(event) => setProjectBudget(event.target.value)} placeholder="No budget" aria-label="Project budget" className="prop-input-number" />
               <SearchableSelect value={budgetCurrency} options={currencies.map((currency) => ({ value: currency, label: currency }))} onChange={setBudgetCurrency} ariaLabel="Budget currency" className="prop-select-currency" />
             </div>
-            <small>Run: <em>{budgetCurrency}</em> {totalCost.toLocaleString()}{budgetTotal > 0 ? ` · ${Math.round((totalCost / budgetTotal) * 100)}% of cap` : " · Set budget cap"}</small>
+            <small><em>{budgetCurrency}</em> {totalCost.toLocaleString()}{budgetTotal > 0 ? ` · ${Math.round((totalCost / budgetTotal) * 100)}% of cap` : " · Set budget cap"}</small>
           </div>
           <div className="project-property-metric editable-metric">
-            <span>PROJECT SLA TARGET</span>
+            <span>SLA TARGET</span>
             <div className="prop-control-group">
               <input type="number" min="0" step="1" value={projectSla} onChange={(event) => setProjectSla(event.target.value)} placeholder="No SLA" aria-label="Project SLA" className="prop-input-number" />
               <SearchableSelect value={projectSlaUnit} options={durationUnits.map((unit) => ({ value: unit, label: unit }))} onChange={setProjectSlaUnit} ariaLabel="Project SLA unit" className="prop-select-unit" />
             </div>
-            <small>Run: {formatDuration(totalLatencyMinutes)}{slaTargetMinutes > 0 ? ` · ${Math.round((totalLatencyMinutes / slaTargetMinutes) * 100)}% ceiling` : " · end-to-end ceiling"}</small>
+            <small>{formatDuration(totalLatencyMinutes)}{slaTargetMinutes > 0 ? ` · ${Math.round((totalLatencyMinutes / slaTargetMinutes) * 100)}% ceiling` : " · end-to-end ceiling"}</small>
           </div>
           <div className="project-property-metric editable-metric">
             <span>ENVIRONMENT</span>
             <div className="prop-control-group">
               <SearchableSelect value={environment} options={environmentOptions} onChange={(value) => setEnvironment(value as CanvasEnvironment)} ariaLabel="Project environment" className={`prop-select-env ${environment}`} />
             </div>
-            <small>{environment === "production" ? "Live traffic" : environment === "staging" ? "Pre-production" : "Sandbox environment"}</small>
           </div>
           <div className="project-property-metric editable-metric">
             <span>GO-LIVE TARGET</span>
@@ -599,76 +1490,208 @@ export default function DecisionCanvasPage() {
           <section className="process-canvas-panel">
             <div className="canvas-toolbar">
               <div className="canvas-toolbar-group">
-                <button className={`tool-button ${activeTool === "select" ? "active" : ""}`} onClick={() => setActiveTool("select")} aria-label="Select tool" aria-pressed={activeTool === "select"}>↖ <span>Select</span></button>
-                <button className={`tool-button ${activeTool === "pan" ? "active" : ""}`} onClick={() => setActiveTool("pan")} aria-label="Pan tool" aria-pressed={activeTool === "pan"}>✋ <span>Pan</span></button>
                 <span className="toolbar-divider" />
                 <div className="add-stage-wrap">
                   <button className="add-stage-button" onClick={() => setShowAddMenu((open) => !open)}>＋ Add stage</button>
                   {showAddMenu && <div className="floating-menu stage-menu">
-                    <small>ADD A BUSINESS STAGE</small>
+                    <small>ADD A WORKFLOW STAGE</small>
                     {stageTypes.map((kind) => <button key={kind.key} onClick={() => addStage(kind)}><span className="menu-color" style={{ background: kind.color }} />{kind.label}<span>+</span></button>)}
-                    </div>}
-                  </div>
+                  </div>}
                 </div>
+                <div className="export-menu-wrap">
+                  <button className="secondary-button" onClick={() => setShowArrangeMenu((open) => !open)}>📐 Auto arrange <span className="button-caret">⌄</span></button>
+                  {showArrangeMenu && (
+                    <div className="floating-menu export-menu">
+                      <small>LAYOUT & SPACING</small>
+                      <button onClick={() => handleAutoArrange("TB")}>↓ Vertical flow (Top to Bottom)</button>
+                      <button onClick={() => handleAutoArrange("LR")}>→ Horizontal flow (Left to Right)</button>
+                      <button onClick={handleSpaciousArrange}>↔ Expand spacing (Zero overlap)</button>
+                    </div>
+                  )}
+                </div>
+                <div className="export-menu-wrap">
+                  <button className="secondary-button" onClick={() => setShowLineStyleMenu((open) => !open)}>⚡ Line style <span className="button-caret">⌄</span></button>
+                  {showLineStyleMenu && (
+                    <div className="floating-menu export-menu">
+                      <small>EDGE ROUTING STYLE</small>
+                      <button onClick={() => { setEdgeLineStyle("smoothstep"); setShowLineStyleMenu(false); setMessage("Line style set to L-shaped (Smooth)"); }}>╰─╯ L-shaped (Smooth)</button>
+                      <button onClick={() => { setEdgeLineStyle("step"); setShowLineStyleMenu(false); setMessage("Line style set to L-shaped (Step)"); }}>└─┐ L-shaped (Step)</button>
+                      <button onClick={() => { setEdgeLineStyle("straight"); setShowLineStyleMenu(false); setMessage("Line style set to Straight (Free flow)"); }}>─── Straight (Free flow)</button>
+                      <button onClick={() => { setEdgeLineStyle("bezier"); setShowLineStyleMenu(false); setMessage("Line style set to Curved (Bezier)"); }}>∿ Curved (Bezier)</button>
+                    </div>
+                  )}
+                </div>
+                <button
+                  className={`secondary-button${wordWrap ? " active" : ""}`}
+                  onClick={() => { setWordWrap((value) => !value); setMessage(wordWrap ? "Standard stage labels" : "Word wrap enabled"); }}
+                  aria-pressed={wordWrap}
+                >
+                  Word Wrap
+                </button>
+                <button className="secondary-button" onClick={clearCanvasOnly} disabled={!stages.length && !edges.length}>Clear canvas</button>
+              </div>
               <div className="canvas-toolbar-group canvas-tools-right">
                 <span className="canvas-stat"><strong>{stages.length}</strong> stages</span>
+                <span className="canvas-stat"><strong>{edges.length}</strong> connections</span>
                 <span className="canvas-stat"><strong>{totalProperties}</strong> properties</span>
-                <span className="toolbar-divider" />
-                <button className="zoom-button" onClick={() => setZoom((value) => Math.max(70, value - 10))}>−</button>
-                <span className="zoom-value">{zoom}%</span>
-                <button className="zoom-button" onClick={() => setZoom((value) => Math.min(130, value + 10))}>+</button>
-                <button className="fit-button" onClick={() => { setZoom(100); viewportRef.current?.scrollTo({ left: 0, top: 0, behavior: "smooth" }); }}>Fit</button>
+                <div className="canvas-search-wrap">
+                  <span className="canvas-search-icon" aria-hidden="true">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="11" cy="11" r="8" />
+                      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                    </svg>
+                  </span>
+                  <input
+                    ref={searchInputRef}
+                    type="text"
+                    className="canvas-search-input"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search nodes (e.g. intake, LLM)..."
+                    aria-label="Search and highlight canvas nodes"
+                  />
+                  {searchQuery ? (
+                    <div className="canvas-search-badge-wrap">
+                      <span className={`search-match-count ${searchMatchSet.size > 0 ? "has-matches" : "no-matches"}`}>
+                        {searchMatchSet.size} {searchMatchSet.size === 1 ? "match" : "matches"}
+                      </span>
+                      <button
+                        className="canvas-search-clear"
+                        onClick={() => { setSearchQuery(""); searchInputRef.current?.focus(); }}
+                        title="Clear search (Esc)"
+                        aria-label="Clear node search"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ) : (
+                    <kbd className="canvas-search-kbd">⌘F</kbd>
+                  )}
+                </div>
               </div>
             </div>
 
-            <div ref={viewportRef} className={`canvas-viewport ${activeTool === "pan" ? "pan-mode" : ""} ${isPanning ? "is-panning" : ""}`} onPointerDown={beginPan} onPointerMove={movePan} onPointerUp={endPan} onPointerCancel={endPan}>
-              <div className="canvas-surface" style={{ "--canvas-zoom": zoom / 100 } as CSSProperties}>
-                {stages.length === 0 ? <div className="blank-canvas-state"><span className="blank-canvas-mark">＋</span><span className="process-eyebrow">BLANK PROCESS CANVAS</span><h2>Start mapping your process</h2><p>Add a stage to begin, or explore the example business flow.</p><div><button className="primary-button" onClick={() => setShowAddMenu(true)}>＋ Add first stage</button><button className="secondary-button" onClick={loadExample}>Load example</button></div></div> : <>
-                  <div className="canvas-label"><span>TRIGGER</span><i /> PROCESS FLOW <i /><span>OUTCOME</span></div>
-                  <div className="flow-track">
-                    {stages.map((stage, index) => <div className="flow-step" key={stage.id}>
-                    <button className={`flow-node ${selectedId === stage.id ? "selected" : ""}`} style={{ "--node-accent": stage.color } as CSSProperties} onClick={() => setSelectedId(stage.id)} aria-label={`Select ${stage.name}`}>
-                      <span className="flow-node-top"><small>0{index + 1}</small><span className="node-more">•••</span></span>
-                      <span className="flow-node-icon"><StageIcon stage={{ label: stage.name, platform: stage.platform, stage_type_key: stage.iconKey, category: stage.type }} decorative={false} /></span>
-                      <strong>{stage.name}</strong>
-                      <span className="flow-node-meta"><span>{stage.type}</span><span>{stage.platform}</span></span>
-                      {stage.properties.length > 0 && <span className="node-property-count">{stage.properties.length} {stage.properties.length === 1 ? "property" : "properties"}</span>}
-                    </button>
-                    {index < stages.length - 1 && <span className="flow-connector" aria-hidden="true"><i /></span>}
-                    </div>)}
-                    <button className="canvas-add-node" onClick={() => setShowAddMenu(true)}><span>＋</span><small>Add stage</small></button>
+            <div className="canvas-viewport rf-viewport">
+              {stages.length === 0 ? (
+                <div className="blank-canvas-state">
+                  <span className="blank-canvas-mark">＋</span>
+                  <span className="process-eyebrow">BLANK PROCESS CANVAS</span>
+                  <h2>Start mapping your process</h2>
+                  <p>Add a stage to begin building your decision workflow.</p>
+                  <div>
+                    <button className="primary-button" onClick={() => setShowAddMenu(true)}>＋ Add first stage</button>
                   </div>
-                  <div className="canvas-hint"><span>Tip</span> Select any stage to edit its details and add custom properties.</div>
-                </>}
-              </div>
+                </div>
+              ) : (
+                <FlowCanvas
+                  stages={stages}
+                  edges={edges}
+                  selectedStageId={selectedId}
+                  selectedEdgeId={selectedEdgeId}
+                  searchQuery={searchQuery}
+                  searchMatchIds={searchMatchSet}
+                  edgeLineStyle={edgeLineStyle}
+                  wordWrap={wordWrap}
+                  onSelectStage={(id) => { setSelectedId(id); setSelectedEdgeId(null); }}
+                  onSelectEdge={(id) => { setSelectedEdgeId(id); setSelectedId(null); }}
+                  onStagePositionsChange={handleStagePositionsChange}
+                  onEdgeCreated={handleEdgeCreated}
+                  onEdgeDeleted={handleEdgeDeleted}
+                  onAddStageRequest={() => setShowAddMenu(true)}
+                />
+              )}
             </div>
 
             <div className="canvas-footer">
-              <span><i className="legend-dot source" /> Input</span><span><i className="legend-dot transform" /> Transform</span><span><i className="legend-dot decision" /> Decision</span><span><i className="legend-dot output" /> Automation</span>
+              <span><i className="legend-dot source" /> Input</span><span><i className="legend-dot transform" /> Transform</span><span><i className="legend-dot human-action" /> Human Action</span><span><i className="legend-dot business-rule" /> Business Rule</span><span><i className="legend-dot llm" /> LLM</span><span><i className="legend-dot user-interface" /> User Interface</span><span><i className="legend-dot decision" /> Decision</span><span><i className="legend-dot output" /> Automation</span>
               <span className="canvas-footer-note">Changes are saved in this browser</span>
             </div>
           </section>
 
           <aside className="inspector-panel">
-            {selectedStage ? <>
-              <div className="inspector-header"><div><span className="process-eyebrow">STAGE PROPERTIES</span><h2>Edit stage</h2></div><button className="icon-button" onClick={removeSelected} aria-label="Delete selected stage">⌫</button></div>
-              <div className="inspector-stage-banner" style={{ "--node-accent": selectedStage.color } as CSSProperties}><span className="inspector-icon"><StageIcon stage={{ label: selectedStage.name, platform: selectedStage.platform, stage_type_key: selectedStage.iconKey, category: selectedStage.type }} decorative={false} /></span><div><strong>{selectedStage.name}</strong><small>Stage {String(stages.findIndex((stage) => stage.id === selectedStage.id) + 1).padStart(2, "0")} of {stages.length}</small></div></div>
-
-              <div className="inspector-form">
-                <label><span>Name</span><input value={selectedStage.name} onChange={(event) => updateStage({ name: event.target.value })} placeholder="Name this stage" /></label>
-                <label><span>Type</span><SearchableSelect value={selectedStage.iconKey} options={stageTypes.map((type) => ({ value: type.key, label: type.label }))} onChange={(value) => changeType(value as StageKind)} ariaLabel="Stage type" /></label>
-                <label><span>Platform</span><SearchableSelect value={selectedStage.platform} options={platforms.map((platform) => ({ value: platform, label: platform }))} onChange={(value) => updateStage({ platform: value })} ariaLabel="Stage platform" /></label>
-              </div>
-
-              <div className="properties-section"><div className="properties-heading"><div><span className="process-eyebrow">CUSTOM DATA</span><strong>Properties</strong></div><div className="property-add-wrap"><button className="add-property-button" onClick={() => setShowPropertyMenu((open) => !open)}>＋ Add property</button>{showPropertyMenu && <div className="floating-menu property-menu"><small>CHOOSE A PROPERTY</small>{propertyPresets.filter((preset) => !selectedStage.properties.some((property) => propertyKind(property) === preset.kind)).map((preset) => <button key={preset.kind} onClick={() => addProperty(preset)}>{preset.label}<span>+</span></button>)}<button onClick={() => addProperty()}><em>＋</em> Custom property</button></div>}</div></div>
-                <p className="properties-help">Add the metrics your team uses to describe this stage.</p>
-                <div className="property-list">
-                  {selectedStage.properties.map((property) => { const kind = propertyKind(property); const numericKind = kind === "cost" || kind === "duration" || kind === "sla" || kind === "rows"; return <div className={`property-row property-${kind}`} key={property.id}><input value={property.name} onChange={(event) => updateProperty(property.id, { name: event.target.value })} aria-label="Property name" /><span>:</span><input className="property-value-input" type={numericKind ? "number" : "text"} min={numericKind ? "0" : undefined} step={kind === "cost" ? "1" : undefined} inputMode={numericKind ? "numeric" : undefined} value={property.value} onChange={(event) => updateProperty(property.id, { value: event.target.value })} placeholder={numericKind ? "0" : "Add value"} aria-label={`${property.name} value`} />{kind === "cost" && <SearchableSelect className="property-meta-select" value={property.currency ?? "USD"} options={currencies.map((currency) => ({ value: currency, label: currency }))} onChange={(value) => updateProperty(property.id, { currency: value })} ariaLabel={`${property.name} currency`} />}{(kind === "duration" || kind === "sla") && <SearchableSelect className="property-meta-select" value={property.unit ?? (kind === "sla" ? "days" : "hours")} options={durationUnits.map((unit) => ({ value: unit, label: unit }))} onChange={(value) => updateProperty(property.id, { unit: value })} ariaLabel={`${property.name} unit`} />}<button onClick={() => removeProperty(property.id)} aria-label={`Remove ${property.name} property`}>×</button></div>; })}
-                  {selectedStage.properties.length === 0 && <div className="properties-empty"><span>⌁</span><p>No custom properties yet.<br />Add duration, cost, rows, or anything useful.</p></div>}
+            {selectedStage ? (
+              <>
+                <div className="inspector-header"><div><span className="process-eyebrow">STAGE PROPERTIES</span><h2>Edit stage</h2></div><button className="icon-button" onClick={removeSelected} aria-label="Delete selected stage">⌫</button></div>
+                <div className="inspector-stage-banner" style={{ "--node-accent": selectedStage.color } as CSSProperties}><span className="inspector-icon"><StageIcon stage={{ label: selectedStage.name, platform: selectedStage.platform, stage_type_key: selectedStage.iconKey, category: selectedStage.type }} decorative={false} /></span><div><strong>{selectedStage.name}</strong><small>{selectedStage.iconKey === "decision" ? `Decision d${stages.filter((s) => s.iconKey === "decision").findIndex((s) => s.id === selectedStage.id) + 1} · ` : ""}Stage {String(stages.findIndex((stage) => stage.id === selectedStage.id) + 1).padStart(2, "0")} of {stages.length}</small></div></div>
+                <div className="inspector-form">
+                  <label><span>Name</span><input value={selectedStage.name} onChange={(event) => updateStage({ name: event.target.value })} placeholder="Name this stage" /></label>
+                  <label><span>Type</span><SearchableSelect value={selectedStage.iconKey} options={stageTypes.map((type) => ({ value: type.key, label: type.label }))} onChange={(value) => changeType(value as StageKind)} ariaLabel="Stage type" /></label>
+                  <label><span>Platform</span><SearchableSelect value={selectedStage.platform} options={platforms.map((platform) => ({ value: platform, label: platform }))} onChange={(value) => updateStage({ platform: value })} ariaLabel="Stage platform" /></label>
                 </div>
+                <div className="properties-section"><div className="properties-heading"><div><span className="process-eyebrow">CUSTOM DATA</span><strong>Properties</strong></div><div className="property-add-wrap"><button className="add-property-button" onClick={() => setShowPropertyMenu((open) => !open)}>＋ Add property</button>{showPropertyMenu && <div className="floating-menu property-menu"><small>CHOOSE A PROPERTY</small>{propertyPresets.filter((preset) => !selectedStage.properties.some((property) => propertyKind(property) === preset.kind)).map((preset) => <button key={preset.kind} onClick={() => addProperty(preset)}>{preset.label}<span>+</span></button>)}<button onClick={() => addProperty()}><em>＋</em> Custom property</button></div>}</div></div>
+                  <p className="properties-help">Add the metrics your team uses to describe this stage.</p>
+                  <div className="property-list">
+                    {selectedStage.properties.map((property) => { const kind = propertyKind(property); const numericKind = kind === "cost" || kind === "duration" || kind === "sla" || kind === "rows"; return <div className={`property-row property-${kind}`} key={property.id}><input value={property.name} onChange={(event) => updateProperty(property.id, { name: event.target.value })} aria-label="Property name" /><span>:</span><input className="property-value-input" type={numericKind ? "number" : "text"} min={numericKind ? "0" : undefined} step={kind === "cost" ? "1" : undefined} inputMode={numericKind ? "numeric" : undefined} value={property.value} onChange={(event) => updateProperty(property.id, { value: event.target.value })} placeholder={numericKind ? "0" : "Add value"} aria-label={`${property.name} value`} />{kind === "cost" && <SearchableSelect className="property-meta-select" value={property.currency ?? "USD"} options={currencies.map((currency) => ({ value: currency, label: currency }))} onChange={(value) => updateProperty(property.id, { currency: value })} ariaLabel={`${property.name} currency`} />}{(kind === "duration" || kind === "sla") && <SearchableSelect className="property-meta-select" value={property.unit ?? (kind === "sla" ? "days" : "hours")} options={durationUnits.map((unit) => ({ value: unit, label: unit }))} onChange={(value) => updateProperty(property.id, { unit: value })} ariaLabel={`${property.name} unit`} />}<button onClick={() => removeProperty(property.id)} aria-label={`Remove ${property.name} property`}>×</button></div>; })}
+                    {selectedStage.properties.length === 0 && <div className="properties-empty"><span>⌁</span><p>No custom properties yet.<br />Add duration, cost, rows, or anything useful.</p></div>}
+                  </div>
+                </div>
+                <label className="notes-field"><span>Notes <em>Optional</em></span><textarea placeholder="Add context for your team..." rows={3} /></label>
+              </>
+            ) : selectedEdge ? (
+              <>
+                <div className="inspector-header">
+                  <div><span className="process-eyebrow">CONNECTION</span><h2>Edit edge</h2></div>
+                  <button className="icon-button" onClick={() => handleEdgeDeleted(selectedEdge.id)} aria-label="Delete selected edge">⌫</button>
+                </div>
+                <div className="edge-inspector-banner">
+                  <span className="edge-inspector-icon">→</span>
+                  <div>
+                    <strong>{stages.find((s) => s.id === selectedEdge.fromStageId)?.name ?? "Unknown"}</strong>
+                    <small>→ {stages.find((s) => s.id === selectedEdge.toStageId)?.name ?? "Unknown"}</small>
+                  </div>
+                </div>
+                <div className="inspector-form edge-inspector-form">
+                  <label>
+                    <span>Label <em style={{ fontStyle: "normal", color: "var(--muted)", fontWeight: 400 }}>Optional</em></span>
+                    <input value={selectedEdge.label ?? ""} onChange={(e) => updateEdge(selectedEdge.id, { label: e.target.value })} placeholder="e.g. Yes, No, Approved…" aria-label="Edge label" />
+                  </label>
+                  <label>
+                    <span>Line style</span>
+                    <SearchableSelect
+                      value={selectedEdge.lineType ?? edgeLineStyle}
+                      options={[
+                        { value: "smoothstep", label: "L-shaped (Smooth)" },
+                        { value: "step", label: "L-shaped (Step)" },
+                        { value: "straight", label: "Straight (Free flow)" },
+                        { value: "bezier", label: "Curved (Bezier)" },
+                      ]}
+                      onChange={(value) => updateEdge(selectedEdge.id, { lineType: value as CanvasEdgeLineStyle })}
+                      ariaLabel="Edge line style"
+                    />
+                  </label>
+                  <label>
+                    <span>Path colour</span>
+                    <div className="edge-color-swatches">
+                      {([
+                        { label: "Default", value: undefined },
+                        { label: "Green", value: "#16a34a" },
+                        { label: "Red", value: "#dc2626" },
+                        { label: "Orange", value: "#f36a10" },
+                        { label: "Blue", value: "#2563eb" },
+                        { label: "Purple", value: "#7c3aed" },
+                      ] as { label: string; value: string | undefined }[]).map(({ label, value }) => (
+                        <button key={label} className={`edge-swatch${(selectedEdge.color ?? undefined) === value ? " selected" : ""}`} style={{ background: value ?? "var(--edge-default)" }} onClick={() => updateEdge(selectedEdge.id, { color: value })} aria-label={label} title={label} />
+                      ))}
+                    </div>
+                  </label>
+                  <label>
+                    <span>Condition <em style={{ fontStyle: "normal", color: "var(--muted)", fontWeight: 400 }}>Optional</em></span>
+                    <input value={selectedEdge.condition ?? ""} onChange={(e) => updateEdge(selectedEdge.id, { condition: e.target.value })} placeholder="e.g. score &gt; 0.9" aria-label="Edge condition" />
+                  </label>
+                </div>
+                <p className="properties-help" style={{ marginTop: 14 }}>
+                  Add a label to annotate the path (e.g. &quot;Yes&quot; / &quot;No&quot;).<br />
+                  Use a colour to visually distinguish branching outcomes.
+                </p>
+              </>
+            ) : (
+              <div className="inspector-empty">
+                <span>◎</span>
+                <h2>Select a stage or edge</h2>
+                <p>Click a stage to edit its properties, or click a connection to label and colour it.</p>
+                <p className="inspector-empty-hint">Drag from a stage handle to create a new connection.</p>
               </div>
-              <label className="notes-field"><span>Notes <em>Optional</em></span><textarea placeholder="Add context for your team..." rows={3} /></label>
-            </> : <div className="inspector-empty"><span>◎</span><h2>Select a stage</h2><p>Choose a stage on the canvas to see and edit its properties.</p></div>}
+            )}
           </aside>
         </div>
       </div>
