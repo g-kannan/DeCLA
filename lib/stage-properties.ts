@@ -33,6 +33,7 @@ export const stagePropertyPresets: Record<StageKind, PropertyPreset[]> = {
     { label: "Data source", kind: "data-source" },
     { label: "Format", kind: "format" },
     { label: "Frequency", kind: "frequency" },
+    { label: "Trigger", kind: "trigger" },
     { label: "Volume", kind: "rows", unit: "rows" },
     { label: "Owner", kind: "owner" },
   ],
@@ -107,7 +108,7 @@ export const stagePropertyPresets: Record<StageKind, PropertyPreset[]> = {
 };
 
 export const stageConfigNotes: Partial<Record<StageKind, { title: string; description: string }>> = {
-  source: { title: "Input configuration", description: "Data source, format, and ingestion frequency are stored as stage properties." },
+  source: { title: "Input configuration", description: "Data source, format, trigger, and ingestion frequency are stored as stage properties." },
   transform: { title: "Transform configuration", description: "Operation type and error handling are stored as stage properties." },
   database: { title: "Storage configuration", description: "Engine, access mode, retention, and governance are stored as stage properties." },
   "human-action": { title: "Human action configuration", description: "Owner, SLA, input mode, and escalation are stored as stage properties." },
@@ -266,7 +267,7 @@ export function propertyKindHasOptions(kind: PropertyKind) {
 }
 
 export function propertyKindAllowsCustom(kind: PropertyKind) {
-  if (kind === "custom" || kind === "question" || kind === "outcomes" || kind === "system-prompt") return true;
+  if (kind === "custom" || kind === "question" || kind === "outcomes" || kind === "system-prompt" || kind === "trigger") return true;
   return propertyKindHasOptions(kind);
 }
 
@@ -275,6 +276,7 @@ export function defaultStageProperties(iconKey: StageKind, createId: (prefix: st
     source: [
       { label: "Data source", kind: "data-source" },
       { label: "Format", kind: "format" },
+      { label: "Trigger", kind: "trigger" },
     ],
     transform: [{ label: "Operation", kind: "operation" }],
     database: [{ label: "Storage engine", kind: "storage-engine" }],

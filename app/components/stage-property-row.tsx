@@ -53,6 +53,22 @@ export function StagePropertyRow({ property, onUpdate, onRemove }: StageProperty
             aria-label={`${property.name} value`}
             rows={3}
           />
+        ) : useCombobox && allowCustom ? (
+          <>
+            <input
+              className="property-value-input"
+              list={`property-options-${property.id}`}
+              value={property.value}
+              onChange={(event) => onUpdate(property.id, { value: event.target.value })}
+              placeholder="Select or type..."
+              aria-label={`${property.name} value`}
+            />
+            <datalist id={`property-options-${property.id}`}>
+              {options.map((option) => (
+                <option key={option.value} value={option.value} />
+              ))}
+            </datalist>
+          </>
         ) : useCombobox ? (
           <SearchableSelect
             className="property-value-select"
