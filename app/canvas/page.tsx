@@ -1450,85 +1450,89 @@ function getEdgeSvgPath(
         <div className="process-layout">
           <section className="process-canvas-panel">
             <div className="canvas-toolbar">
-              <div className="canvas-toolbar-group">
-                <span className="toolbar-divider" />
-                <div className="add-stage-wrap">
-                  <button className="add-stage-button" onClick={() => setShowAddMenu((open) => !open)}>＋ Add stage</button>
-                  {showAddMenu && <div className="floating-menu stage-menu">
-                    <small>ADD A WORKFLOW STAGE</small>
-                    {stageTypes.map((kind) => <button key={kind.key} onClick={() => addStage(kind)}><span className="menu-color" style={{ background: kind.color }} />{kind.label}<span>+</span></button>)}
-                  </div>}
+              <div className="canvas-toolbar-row">
+                <div className="canvas-toolbar-group canvas-toolbar-actions">
+                  <span className="toolbar-divider" />
+                  <div className="add-stage-wrap">
+                    <button className="add-stage-button" onClick={() => setShowAddMenu((open) => !open)}>＋ Add stage</button>
+                    {showAddMenu && <div className="floating-menu stage-menu">
+                      <small>ADD A WORKFLOW STAGE</small>
+                      {stageTypes.map((kind) => <button key={kind.key} onClick={() => addStage(kind)}><span className="menu-color" style={{ background: kind.color }} />{kind.label}<span>+</span></button>)}
+                    </div>}
+                  </div>
+                  <div className="export-menu-wrap">
+                    <button className="secondary-button" onClick={() => setShowArrangeMenu((open) => !open)}>📐 Auto arrange <span className="button-caret">⌄</span></button>
+                    {showArrangeMenu && (
+                      <div className="floating-menu export-menu">
+                        <small>LAYOUT & SPACING</small>
+                        <button onClick={() => handleAutoArrange("TB")}>↓ Vertical flow (Top to Bottom)</button>
+                        <button onClick={() => handleAutoArrange("LR")}>→ Horizontal flow (Left to Right)</button>
+                        <button onClick={handleSpaciousArrange}>↔ Expand spacing (Zero overlap)</button>
+                      </div>
+                    )}
+                  </div>
+                  <div className="export-menu-wrap">
+                    <button className="secondary-button" onClick={() => setShowLineStyleMenu((open) => !open)}>⚡ Line style <span className="button-caret">⌄</span></button>
+                    {showLineStyleMenu && (
+                      <div className="floating-menu export-menu">
+                        <small>EDGE ROUTING STYLE</small>
+                        <button onClick={() => { setEdgeLineStyle("smoothstep"); setShowLineStyleMenu(false); setMessage("Line style set to L-shaped (Smooth)"); }}>╰─╯ L-shaped (Smooth)</button>
+                        <button onClick={() => { setEdgeLineStyle("step"); setShowLineStyleMenu(false); setMessage("Line style set to L-shaped (Step)"); }}>└─┐ L-shaped (Step)</button>
+                        <button onClick={() => { setEdgeLineStyle("straight"); setShowLineStyleMenu(false); setMessage("Line style set to Straight (Free flow)"); }}>─── Straight (Free flow)</button>
+                        <button onClick={() => { setEdgeLineStyle("bezier"); setShowLineStyleMenu(false); setMessage("Line style set to Curved (Bezier)"); }}>∿ Curved (Bezier)</button>
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    className={`secondary-button${wordWrap ? " active" : ""}`}
+                    onClick={() => { setWordWrap((value) => !value); setMessage(wordWrap ? "Standard stage labels" : "Word wrap enabled"); }}
+                    aria-pressed={wordWrap}
+                  >
+                    Word Wrap
+                  </button>
+                  <button className="secondary-button" onClick={clearCanvasOnly} disabled={!stages.length && !edges.length}>Clear canvas</button>
                 </div>
-                <div className="export-menu-wrap">
-                  <button className="secondary-button" onClick={() => setShowArrangeMenu((open) => !open)}>📐 Auto arrange <span className="button-caret">⌄</span></button>
-                  {showArrangeMenu && (
-                    <div className="floating-menu export-menu">
-                      <small>LAYOUT & SPACING</small>
-                      <button onClick={() => handleAutoArrange("TB")}>↓ Vertical flow (Top to Bottom)</button>
-                      <button onClick={() => handleAutoArrange("LR")}>→ Horizontal flow (Left to Right)</button>
-                      <button onClick={handleSpaciousArrange}>↔ Expand spacing (Zero overlap)</button>
-                    </div>
-                  )}
+                <div className="canvas-toolbar-group canvas-tools-right">
+                  <div className="canvas-search-wrap">
+                    <span className="canvas-search-icon" aria-hidden="true">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="11" cy="11" r="8" />
+                        <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                      </svg>
+                    </span>
+                    <input
+                      ref={searchInputRef}
+                      type="text"
+                      className="canvas-search-input"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Search nodes (e.g. intake, LLM)..."
+                      aria-label="Search and highlight canvas nodes"
+                    />
+                    {searchQuery ? (
+                      <div className="canvas-search-badge-wrap">
+                        <span className={`search-match-count ${searchMatchSet.size > 0 ? "has-matches" : "no-matches"}`}>
+                          {searchMatchSet.size} {searchMatchSet.size === 1 ? "match" : "matches"}
+                        </span>
+                        <button
+                          className="canvas-search-clear"
+                          onClick={() => { setSearchQuery(""); searchInputRef.current?.focus(); }}
+                          title="Clear search (Esc)"
+                          aria-label="Clear node search"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ) : (
+                      <kbd className="canvas-search-kbd">⌘F</kbd>
+                    )}
+                  </div>
                 </div>
-                <div className="export-menu-wrap">
-                  <button className="secondary-button" onClick={() => setShowLineStyleMenu((open) => !open)}>⚡ Line style <span className="button-caret">⌄</span></button>
-                  {showLineStyleMenu && (
-                    <div className="floating-menu export-menu">
-                      <small>EDGE ROUTING STYLE</small>
-                      <button onClick={() => { setEdgeLineStyle("smoothstep"); setShowLineStyleMenu(false); setMessage("Line style set to L-shaped (Smooth)"); }}>╰─╯ L-shaped (Smooth)</button>
-                      <button onClick={() => { setEdgeLineStyle("step"); setShowLineStyleMenu(false); setMessage("Line style set to L-shaped (Step)"); }}>└─┐ L-shaped (Step)</button>
-                      <button onClick={() => { setEdgeLineStyle("straight"); setShowLineStyleMenu(false); setMessage("Line style set to Straight (Free flow)"); }}>─── Straight (Free flow)</button>
-                      <button onClick={() => { setEdgeLineStyle("bezier"); setShowLineStyleMenu(false); setMessage("Line style set to Curved (Bezier)"); }}>∿ Curved (Bezier)</button>
-                    </div>
-                  )}
-                </div>
-                <button
-                  className={`secondary-button${wordWrap ? " active" : ""}`}
-                  onClick={() => { setWordWrap((value) => !value); setMessage(wordWrap ? "Standard stage labels" : "Word wrap enabled"); }}
-                  aria-pressed={wordWrap}
-                >
-                  Word Wrap
-                </button>
-                <button className="secondary-button" onClick={clearCanvasOnly} disabled={!stages.length && !edges.length}>Clear canvas</button>
               </div>
-              <div className="canvas-toolbar-group canvas-tools-right">
+              <div className="canvas-toolbar-stats">
                 <span className="canvas-stat"><strong>{stages.length}</strong> stages</span>
                 <span className="canvas-stat"><strong>{edges.length}</strong> connections</span>
                 <span className="canvas-stat"><strong>{totalProperties}</strong> properties</span>
-                <div className="canvas-search-wrap">
-                  <span className="canvas-search-icon" aria-hidden="true">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                      <circle cx="11" cy="11" r="8" />
-                      <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                    </svg>
-                  </span>
-                  <input
-                    ref={searchInputRef}
-                    type="text"
-                    className="canvas-search-input"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search nodes (e.g. intake, LLM)..."
-                    aria-label="Search and highlight canvas nodes"
-                  />
-                  {searchQuery ? (
-                    <div className="canvas-search-badge-wrap">
-                      <span className={`search-match-count ${searchMatchSet.size > 0 ? "has-matches" : "no-matches"}`}>
-                        {searchMatchSet.size} {searchMatchSet.size === 1 ? "match" : "matches"}
-                      </span>
-                      <button
-                        className="canvas-search-clear"
-                        onClick={() => { setSearchQuery(""); searchInputRef.current?.focus(); }}
-                        title="Clear search (Esc)"
-                        aria-label="Clear node search"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  ) : (
-                    <kbd className="canvas-search-kbd">⌘F</kbd>
-                  )}
-                </div>
               </div>
             </div>
 
