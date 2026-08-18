@@ -338,3 +338,48 @@ export function stageQuickAddLabel(iconKey: StageKind) {
 }
 
 export const rateLimitUnits = ["req/min", "req/hour"];
+
+/** Everyday source systems for Input stages — not data/cloud platforms. */
+export const inputPlatforms = [
+  "ServiceNow",
+  "Mail",
+  "Jira",
+  "Confluence",
+  "Slack",
+  "Microsoft Teams",
+  "Salesforce",
+  "HubSpot",
+  "SharePoint",
+  "Google Drive",
+  "Zendesk",
+  "Workday",
+  "SAP",
+  "Excel",
+  "Web form",
+  "API",
+  "Other",
+];
+
+export const defaultPlatforms = [
+  "OpenAI",
+  "Anthropic",
+  "Google Gemini",
+  "Azure OpenAI",
+  "AWS Bedrock",
+  "Streamlit",
+  "Gradio",
+  "React",
+  "Slack",
+  "Microsoft Teams",
+  "Salesforce",
+  "HubSpot",
+  "Snowflake",
+  "Databricks",
+  "dbt",
+  "AWS",
+  "Other",
+];
+
+export function platformsForStage(iconKey: StageKind): string[] {
+  return iconKey === "source" ? inputPlatforms : defaultPlatforms;
+}

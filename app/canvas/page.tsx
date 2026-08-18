@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties } from "react";
 import { AppShell } from "@/app/components/app-shell";
 import { SearchableSelect } from "@/app/components/searchable-select";
 import { StagePropertyRow } from "@/app/components/stage-property-row";
 import { CANVAS_STORAGE_KEY, nextCanvasVersion, normalizeCanvasEdges, normalizeCanvasStages, readCanvasVersions, writeCanvasDraft, writeCanvasVersions, type CanvasEdge, type CanvasEdgeLineStyle, type CanvasEnvironment, type CanvasStage, type CanvasStatus, type CanvasVersion, type StageProperty } from "@/lib/local-canvas";
-import { defaultStageProperties, propertyKind, stageConfigNotes, stagePropertyPresets, stageQuickAddLabel, universalPropertyPresets, type PropertyPreset, type StageKind } from "@/lib/stage-properties";
+import { defaultStageProperties, platformsForStage, propertyKind, stageConfigNotes, stagePropertyPresets, stageQuickAddLabel, universalPropertyPresets, type PropertyPreset, type StageKind } from "@/lib/stage-properties";
 import { StageIcon } from "@/lib/stage-icons";
 import { useToastMessage } from "@/lib/use-toast-message";
+import { useDismissOnOutsideClick } from "@/lib/use-dismiss-on-outside-click";
 import { FlowCanvas, getAutoLayout } from "./flow-canvas";
 
 const stageTypes: { label: string; key: StageKind; color: string }[] = [
@@ -26,7 +27,6 @@ const stageTypes: { label: string; key: StageKind; color: string }[] = [
   { label: "Integration/Tool", key: "integration-tool", color: "#2563EB" },
 ];
 
-const platforms = ["OpenAI", "Anthropic", "Google Gemini", "Azure OpenAI", "AWS Bedrock", "Streamlit", "Gradio", "React", "Slack", "Microsoft Teams", "Salesforce", "HubSpot", "Snowflake", "Databricks", "dbt", "AWS", "Other"];
 const durationUnits = ["mins", "hours", "days"];
 const currencies = ["USD", "EUR", "GBP", "INR"];
 const statusOptions: { value: CanvasStatus; label: string }[] = [
@@ -47,7 +47,7 @@ const seedStages: CanvasStage[] = [
     id: "forecast-ingestion",
     name: "Ingest weekly forecast files",
     type: "Input",
-    platform: "Databricks",
+    platform: "SharePoint",
     iconKey: "source",
     color: "#2A2ACF",
     x: 350,
@@ -640,6 +640,31 @@ export default function DecisionCanvasPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const searchInputRef = useRef<HTMLInputElement>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
+
+  const closeFloatingMenus = useCallback(() => {
+    setShowAddMenu(false);
+    setShowPropertyMenu(false);
+    setShowExportMenu(false);
+    setShowExamplesMenu(false);
+    setShowArrangeMenu(false);
+    setShowLineStyleMenu(false);
+  }, []);
+
+  function toggleExclusiveMenu(isOpen: boolean, setOpen: (open: boolean) => void) {
+    if (isOpen) {
+      setOpen(false);
+      return;
+    }
+    closeFloatingMenus();
+    setOpen(true);
+  }
+
+  const addStageMenuRef = useDismissOnOutsideClick(showAddMenu, () => setShowAddMenu(false));
+  const arrangeMenuRef = useDismissOnOutsideClick(showArrangeMenu, () => setShowArrangeMenu(false));
+  const lineStyleMenuRef = useDismissOnOutsideClick(showLineStyleMenu, () => setShowLineStyleMenu(false));
+  const examplesMenuRef = useDismissOnOutsideClick(showExamplesMenu, () => setShowExamplesMenu(false));
+  const exportMenuRef = useDismissOnOutsideClick(showExportMenu, () => setShowExportMenu(false));
+  const propertyMenuRef = useDismissOnOutsideClick(showPropertyMenu, () => setShowPropertyMenu(false));
 
   const searchMatchSet = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -1396,10 +1421,10 @@ function getEdgeSvgPath(
           </div>
           <div className="process-heading-actions">
             <div className="header-status-group"><label className={`project-status-control header-project-status ${projectStatus}`}><span>PROJECT STATUS</span><SearchableSelect value={projectStatus} options={statusOptions} onChange={(value) => setProjectStatus(value as CanvasStatus)} ariaLabel="Project status" /></label></div>
-            <div className="export-menu-wrap"><button className="secondary-button" onClick={() => setShowExamplesMenu((open) => !open)}>Examples <span className="button-caret">⌄</span></button>{showExamplesMenu && <div className="floating-menu export-menu"><small>LOAD EXAMPLE WORKFLOW</small><button onClick={() => { loadExample("return-request"); setShowExamplesMenu(false); }}>Customer return request</button><button onClick={() => { loadExample("forecast"); setShowExamplesMenu(false); }}>Weekly forecast analysis</button></div>}</div>
+            <div className="export-menu-wrap" ref={examplesMenuRef}><button className="secondary-button" onClick={() => toggleExclusiveMenu(showExamplesMenu, setShowExamplesMenu)}>Examples <span className="button-caret">⌄</span></button>{showExamplesMenu && <div className="floating-menu export-menu"><small>LOAD EXAMPLE WORKFLOW</small><button onClick={() => { loadExample("return-request"); setShowExamplesMenu(false); }}>Customer return request</button><button onClick={() => { loadExample("forecast"); setShowExamplesMenu(false); }}>Weekly forecast analysis</button></div>}</div>
             <button className="secondary-button" onClick={() => setMessage("Share link copied to clipboard")}>Share</button>
             <button className="secondary-button" onClick={saveDraft}>Save version</button>
-            <input ref={importInputRef} className="hidden-file-input" type="file" accept=".decla" onChange={handleImport} /><button className="secondary-button" onClick={() => importInputRef.current?.click()}>Import file</button><button className="primary-button" onClick={saveDeclaFile}>Save to File</button><div className="export-menu-wrap"><button className="secondary-button" onClick={() => setShowExportMenu((open) => !open)}>Export <span className="button-caret">⌄</span></button>{showExportMenu && <div className="floating-menu export-menu"><small>EXPORT CANVAS</small><button onClick={exportSvg}>SVG image <span>.svg</span></button><button onClick={exportPng}>PNG image <span>.png</span></button></div>}</div><button className="clear-canvas-button" onClick={clearWorkspace} disabled={!Boolean(processName || projectStatus !== "draft" || environment !== "development" || goLiveDate || projectBudget || projectSla || versionTags.length || stages.length || versions.length)}>Clear workspace</button>
+            <input ref={importInputRef} className="hidden-file-input" type="file" accept=".decla" onChange={handleImport} /><button className="secondary-button" onClick={() => importInputRef.current?.click()}>Import file</button><button className="primary-button" onClick={saveDeclaFile}>Save to File</button><div className="export-menu-wrap" ref={exportMenuRef}><button className="secondary-button" onClick={() => toggleExclusiveMenu(showExportMenu, setShowExportMenu)}>Export <span className="button-caret">⌄</span></button>{showExportMenu && <div className="floating-menu export-menu"><small>EXPORT CANVAS</small><button onClick={exportSvg}>SVG image <span>.svg</span></button><button onClick={exportPng}>PNG image <span>.png</span></button></div>}</div><button className="clear-canvas-button" onClick={clearWorkspace} disabled={!Boolean(processName || projectStatus !== "draft" || environment !== "development" || goLiveDate || projectBudget || projectSla || versionTags.length || stages.length || versions.length)}>Clear workspace</button>
           </div>
         </header>
 
@@ -1453,15 +1478,15 @@ function getEdgeSvgPath(
               <div className="canvas-toolbar-row">
                 <div className="canvas-toolbar-group canvas-toolbar-actions">
                   <span className="toolbar-divider" />
-                  <div className="add-stage-wrap">
-                    <button className="add-stage-button" onClick={() => setShowAddMenu((open) => !open)}>＋ Add stage</button>
+                  <div className="add-stage-wrap" ref={addStageMenuRef}>
+                    <button className="add-stage-button" onClick={() => toggleExclusiveMenu(showAddMenu, setShowAddMenu)}>＋ Add stage</button>
                     {showAddMenu && <div className="floating-menu stage-menu">
                       <small>ADD A WORKFLOW STAGE</small>
                       {stageTypes.map((kind) => <button key={kind.key} onClick={() => addStage(kind)}><span className="menu-color" style={{ background: kind.color }} />{kind.label}<span>+</span></button>)}
                     </div>}
                   </div>
-                  <div className="export-menu-wrap">
-                    <button className="secondary-button" onClick={() => setShowArrangeMenu((open) => !open)}>📐 Auto arrange <span className="button-caret">⌄</span></button>
+                  <div className="export-menu-wrap" ref={arrangeMenuRef}>
+                    <button className="secondary-button" onClick={() => toggleExclusiveMenu(showArrangeMenu, setShowArrangeMenu)}>📐 Auto arrange <span className="button-caret">⌄</span></button>
                     {showArrangeMenu && (
                       <div className="floating-menu export-menu">
                         <small>LAYOUT & SPACING</small>
@@ -1471,8 +1496,8 @@ function getEdgeSvgPath(
                       </div>
                     )}
                   </div>
-                  <div className="export-menu-wrap">
-                    <button className="secondary-button" onClick={() => setShowLineStyleMenu((open) => !open)}>⚡ Line style <span className="button-caret">⌄</span></button>
+                  <div className="export-menu-wrap" ref={lineStyleMenuRef}>
+                    <button className="secondary-button" onClick={() => toggleExclusiveMenu(showLineStyleMenu, setShowLineStyleMenu)}>⚡ Line style <span className="button-caret">⌄</span></button>
                     {showLineStyleMenu && (
                       <div className="floating-menu export-menu">
                         <small>EDGE ROUTING STYLE</small>
@@ -1544,7 +1569,7 @@ function getEdgeSvgPath(
                   <h2>Start mapping your process</h2>
                   <p>Add a stage to begin building your decision workflow.</p>
                   <div>
-                    <button className="primary-button" onClick={() => setShowAddMenu(true)}>＋ Add first stage</button>
+                    <button className="primary-button" onClick={() => { closeFloatingMenus(); setShowAddMenu(true); }}>＋ Add first stage</button>
                   </div>
                 </div>
               ) : (
@@ -1562,7 +1587,7 @@ function getEdgeSvgPath(
                   onStagePositionsChange={handleStagePositionsChange}
                   onEdgeCreated={handleEdgeCreated}
                   onEdgeDeleted={handleEdgeDeleted}
-                  onAddStageRequest={() => setShowAddMenu(true)}
+                  onAddStageRequest={() => { closeFloatingMenus(); setShowAddMenu(true); }}
                 />
               )}
             </div>
@@ -1581,7 +1606,7 @@ function getEdgeSvgPath(
                 <div className="inspector-form">
                   <label><span>Name</span><input value={selectedStage.name} onChange={(event) => updateStage({ name: event.target.value })} placeholder="Name this stage" /></label>
                   <label><span>Type</span><SearchableSelect value={selectedStage.iconKey} options={stageTypes.map((type) => ({ value: type.key, label: type.label }))} onChange={(value) => changeType(value as StageKind)} ariaLabel="Stage type" /></label>
-                  <label><span>Platform</span><SearchableSelect value={selectedStage.platform} options={platforms.map((platform) => ({ value: platform, label: platform }))} onChange={(value) => updateStage({ platform: value })} ariaLabel="Stage platform" allowCustom /></label>
+                  <label><span>Platform</span><SearchableSelect value={selectedStage.platform} options={platformsForStage(selectedStage.iconKey as StageKind).map((platform) => ({ value: platform, label: platform }))} onChange={(value) => updateStage({ platform: value })} ariaLabel="Stage platform" allowCustom /></label>
                 </div>
                 {stageConfigNotes[selectedStage.iconKey as StageKind] && (
                   <div className="stage-config-note">
@@ -1589,7 +1614,7 @@ function getEdgeSvgPath(
                     <span>{stageConfigNotes[selectedStage.iconKey as StageKind]!.description}</span>
                   </div>
                 )}
-                <div className="properties-section"><div className="properties-heading"><div><span className="process-eyebrow">CUSTOM DATA</span><strong>Properties</strong></div><div className="property-add-wrap"><button className="add-property-button" onClick={() => setShowPropertyMenu((open) => !open)}>＋ Add property</button>{showPropertyMenu && <div className="floating-menu property-menu"><small>CHOOSE A PROPERTY</small>{universalPropertyPresets.filter((preset) => !selectedStage.properties.some((property) => propertyKind(property) === preset.kind)).map((preset) => <button key={preset.kind} onClick={() => addProperty(preset)}>{preset.label}<span>+</span></button>)}<button onClick={() => addProperty()}><em>＋</em> Custom property</button></div>}</div></div>
+                <div className="properties-section"><div className="properties-heading"><div><span className="process-eyebrow">CUSTOM DATA</span><strong>Properties</strong></div><div className="property-add-wrap" ref={propertyMenuRef}><button className="add-property-button" onClick={() => toggleExclusiveMenu(showPropertyMenu, setShowPropertyMenu)}>＋ Add property</button>{showPropertyMenu && <div className="floating-menu property-menu"><small>CHOOSE A PROPERTY</small>{universalPropertyPresets.filter((preset) => !selectedStage.properties.some((property) => propertyKind(property) === preset.kind)).map((preset) => <button key={preset.kind} onClick={() => addProperty(preset)}>{preset.label}<span>+</span></button>)}<button onClick={() => addProperty()}><em>＋</em> Custom property</button></div>}</div></div>
                   <p className="properties-help">Add the metrics your team uses to describe this stage.</p>
                   <div className="property-list">
                     {selectedStage.properties.map((property) => (
