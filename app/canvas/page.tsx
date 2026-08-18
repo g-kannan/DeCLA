@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type ChangeEvent, type CSSPropert
 import { AppShell } from "@/app/components/app-shell";
 import { CANVAS_STORAGE_KEY, nextCanvasVersion, normalizeCanvasEdges, normalizeCanvasStages, readCanvasVersions, writeCanvasDraft, writeCanvasVersions, type CanvasEdge, type CanvasEdgeLineStyle, type CanvasEnvironment, type CanvasStage, type CanvasStageIconKey, type CanvasStatus, type CanvasVersion, type PropertyKind, type StageProperty } from "@/lib/local-canvas";
 import { StageIcon } from "@/lib/stage-icons";
+import { useToastMessage } from "@/lib/use-toast-message";
 import { FlowCanvas, getAutoLayout } from "./flow-canvas";
 
 type StageKind = Exclude<CanvasStageIconKey, "analytics">;
@@ -665,7 +666,7 @@ export default function DecisionCanvasPage() {
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [showPropertyMenu, setShowPropertyMenu] = useState(false);
-  const [message, setMessage] = useState("");
+  const { message, setMessage, clearMessage } = useToastMessage();
   const [hydrated, setHydrated] = useState(false);
   const [versions, setVersions] = useState<CanvasVersion[]>([]);
   const [showExportMenu, setShowExportMenu] = useState(false);
@@ -1484,7 +1485,7 @@ function getEdgeSvgPath(
           </div>
         </section>
 
-        {message && <button className="process-toast" onClick={() => setMessage("")} aria-label="Dismiss message">{message}<span>×</span></button>}
+        {message && <button className="process-toast" onClick={clearMessage} aria-label="Dismiss message">{message}<span>×</span></button>}
 
         <div className="process-layout">
           <section className="process-canvas-panel">
