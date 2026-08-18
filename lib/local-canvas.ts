@@ -1,4 +1,21 @@
-export type PropertyKind = "duration" | "cost" | "rows" | "owner" | "sla" | "custom";
+export type PropertyKind =
+  | "duration" | "cost" | "rows" | "owner" | "sla" | "custom"
+  | "model" | "temperature" | "max-tokens" | "tools" | "system-prompt"
+  | "data-source" | "format" | "frequency"
+  | "operation" | "error-handling"
+  | "storage-engine" | "access-mode" | "retention" | "governance"
+  | "input-mode" | "action-type" | "escalation"
+  | "rule-type" | "enforcement" | "outcomes"
+  | "question" | "evaluation" | "default-path"
+  | "llm-task" | "grounding" | "guardrail"
+  | "channel" | "audience" | "delivery"
+  | "execution-engine" | "trigger" | "retry-policy" | "timeout"
+  | "loop-type" | "max-iterations" | "exit-condition"
+  | "severity" | "recipients" | "throttle"
+  | "orchestration" | "memory" | "autonomy"
+  | "integration-type" | "auth-method" | "direction" | "rate-limit" | "idempotency"
+  | "audit-required";
+
 export type StageProperty = { id: string; name: string; value: string; kind?: PropertyKind; unit?: string; currency?: string };
 
 export type CanvasStageIconKey =
@@ -86,11 +103,15 @@ export const CANVAS_STORAGE_KEY = "decla-process-canvas-v4";
 export const VERSIONS_STORAGE_KEY = "decla-process-versions-v2";
 
 export function normalizeCanvasStages(stages: CanvasStage[]) {
-  return stages.map((stage) =>
-    stage.iconKey === "analytics" && stage.type?.toLowerCase() === "decision"
+  return stages.map((stage) => {
+    const normalizedStage = stage.iconKey === "analytics" && stage.type?.toLowerCase() === "decision"
       ? { ...stage, iconKey: "decision" as const }
-      : stage,
-  );
+      : stage.iconKey === "agent" && stage.type?.toLowerCase() === "agent"
+        ? { ...stage, type: "AI Agent" }
+        : stage;
+
+    return normalizedStage;
+  });
 }
 
 /**

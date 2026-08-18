@@ -2,12 +2,13 @@
 
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties } from "react";
 import { AppShell } from "@/app/components/app-shell";
-import { CANVAS_STORAGE_KEY, nextCanvasVersion, normalizeCanvasEdges, normalizeCanvasStages, readCanvasVersions, writeCanvasDraft, writeCanvasVersions, type CanvasEdge, type CanvasEdgeLineStyle, type CanvasEnvironment, type CanvasStage, type CanvasStageIconKey, type CanvasStatus, type CanvasVersion, type PropertyKind, type StageProperty } from "@/lib/local-canvas";
+import { SearchableSelect } from "@/app/components/searchable-select";
+import { StagePropertyRow } from "@/app/components/stage-property-row";
+import { CANVAS_STORAGE_KEY, nextCanvasVersion, normalizeCanvasEdges, normalizeCanvasStages, readCanvasVersions, writeCanvasDraft, writeCanvasVersions, type CanvasEdge, type CanvasEdgeLineStyle, type CanvasEnvironment, type CanvasStage, type CanvasStatus, type CanvasVersion, type StageProperty } from "@/lib/local-canvas";
+import { defaultStageProperties, propertyKind, stageConfigNotes, stagePropertyPresets, stageQuickAddLabel, universalPropertyPresets, type PropertyPreset, type StageKind } from "@/lib/stage-properties";
 import { StageIcon } from "@/lib/stage-icons";
 import { useToastMessage } from "@/lib/use-toast-message";
 import { FlowCanvas, getAutoLayout } from "./flow-canvas";
-
-type StageKind = Exclude<CanvasStageIconKey, "analytics">;
 
 const stageTypes: { label: string; key: StageKind; color: string }[] = [
   { label: "Input", key: "source", color: "#2A2ACF" },
@@ -21,20 +22,13 @@ const stageTypes: { label: string; key: StageKind; color: string }[] = [
   { label: "Automation", key: "terminal", color: "#2A2ACF" },
   { label: "Feedback Loop", key: "feedback-loop", color: "#0F766E" },
   { label: "Alert", key: "alert", color: "#DC2626" },
-  { label: "Agent", key: "agent", color: "#7C3AED" },
+  { label: "AI Agent", key: "agent", color: "#7C3AED" },
   { label: "Integration/Tool", key: "integration-tool", color: "#2563EB" },
 ];
 
 const platforms = ["OpenAI", "Anthropic", "Google Gemini", "Azure OpenAI", "AWS Bedrock", "Streamlit", "Gradio", "React", "Slack", "Microsoft Teams", "Salesforce", "HubSpot", "Snowflake", "Databricks", "dbt", "AWS", "Other"];
 const durationUnits = ["mins", "hours", "days"];
 const currencies = ["USD", "EUR", "GBP", "INR"];
-const propertyPresets: { label: string; kind: PropertyKind; unit?: string; currency?: string }[] = [
-  { label: "Duration", kind: "duration", unit: "hours" },
-  { label: "Cost", kind: "cost", currency: "USD" },
-  { label: "Rows", kind: "rows", unit: "rows" },
-  { label: "Owner", kind: "owner" },
-  { label: "SLA", kind: "sla", unit: "days" },
-];
 const statusOptions: { value: CanvasStatus; label: string }[] = [
   { value: "draft", label: "Draft" },
   { value: "under-review", label: "Under review" },
@@ -615,41 +609,6 @@ function formatShortDate(date: string) {
   return new Intl.DateTimeFormat(undefined, { day: "2-digit", month: "short", year: "numeric" }).format(new Date(`${date}T00:00:00`));
 }
 
-function propertyKind(property: StageProperty): PropertyKind {
-  if (property.kind) return property.kind;
-  const name = property.name.toLowerCase();
-  if (name.includes("duration")) return "duration";
-  if (name.includes("cost")) return "cost";
-  if (name.includes("row")) return "rows";
-  if (name.includes("owner")) return "owner";
-  if (name.includes("sla")) return "sla";
-  return "custom";
-}
-
-type SearchableOption = { value: string; label: string };
-
-function SearchableSelect({ value, options, onChange, ariaLabel, className = "" }: { value: string; options: SearchableOption[]; onChange: (value: string) => void; ariaLabel: string; className?: string }) {
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const wrapRef = useRef<HTMLDivElement>(null);
-  const selected = options.find((option) => option.value === value)?.label ?? value;
-  const filtered = options.filter((option) => option.label.toLowerCase().includes(query.toLowerCase()));
-
-  useEffect(() => {
-    if (!open) return;
-    function handleOutside(event: MouseEvent) {
-      if (wrapRef.current && !wrapRef.current.contains(event.target as Node)) {
-        setOpen(false);
-        setQuery("");
-      }
-    }
-    document.addEventListener("mousedown", handleOutside);
-    return () => document.removeEventListener("mousedown", handleOutside);
-  }, [open]);
-
-  return <div ref={wrapRef} className={`searchable-select ${className}`.trim()}><button type="button" className="searchable-select-trigger" onClick={() => { setOpen((current) => !current); setQuery(""); }} aria-label={ariaLabel} aria-expanded={open}>{selected || "Select..."}<span>⌄</span></button>{open && <div className="searchable-select-menu"><input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Escape") setOpen(false); }} placeholder="Search..." aria-label={`Search ${ariaLabel}`} />{filtered.length ? <div className="searchable-select-options">{filtered.map((option) => <button type="button" key={option.value} className={option.value === value ? "selected" : ""} onClick={() => { onChange(option.value); setOpen(false); setQuery(""); }}>{option.label}</button>)}</div> : <small className="searchable-select-empty">No matches</small>}</div>}</div>;
-}
-
 export default function DecisionCanvasPage() {
   const [processName, setProcessName] = useState("");
   const [projectStatus, setProjectStatus] = useState<CanvasStatus>("draft");
@@ -806,7 +765,8 @@ export default function DecisionCanvasPage() {
       const decisionCount = stages.filter((s) => s.iconKey === "decision" && s.id !== selectedStage.id).length + 1;
       nextName = `Decision d${decisionCount}`;
     }
-    updateStage({ type: next.label, iconKey: next.key, color: next.color, ...(nextName ? { name: nextName } : {}) });
+    const typeDefaults = selectedStage?.properties.length === 0 ? defaultStageProperties(key, createId) : undefined;
+    updateStage({ type: next.label, iconKey: next.key, color: next.color, ...(nextName ? { name: nextName } : {}), ...(typeDefaults ? { properties: typeDefaults } : {}) });
   }
 
   function addStage(kind: (typeof stageTypes)[number]) {
@@ -826,12 +786,12 @@ export default function DecisionCanvasPage() {
 
     const next: CanvasStage = {
       id: createId("stage"),
-      name: defaultName,
+      name: kind.key === "agent" ? "New AI Agent" : defaultName,
       type: kind.label,
       platform: "Other",
       iconKey: kind.key,
       color: kind.color,
-      properties: [],
+      properties: defaultStageProperties(kind.key, createId),
       x,
       y,
     };
@@ -897,14 +857,14 @@ export default function DecisionCanvasPage() {
     setMessage("Spacious auto-arrange applied (zero overlap)");
   }
 
-  function addProperty(definition?: (typeof propertyPresets)[number]) {
+  function addProperty(definition?: PropertyPreset) {
     if (!selectedStage) return;
     const baseName = definition?.label ?? "New property";
     const existingNames = new Set(selectedStage.properties.map((property) => property.name.toLowerCase()));
     let name = baseName;
     let suffix = 2;
     while (existingNames.has(name.toLowerCase())) name = `${baseName} ${suffix++}`;
-    const property = { id: createId("property"), name, value: "", kind: definition?.kind ?? "custom", unit: definition?.unit, currency: definition?.currency };
+    const property = { id: createId("property"), name, value: definition?.defaultValue ?? "", kind: definition?.kind ?? "custom", unit: definition?.unit, currency: definition?.currency };
     updateStage({ properties: [...selectedStage.properties, property] });
     setShowPropertyMenu(false);
   }
@@ -1617,15 +1577,35 @@ function getEdgeSvgPath(
                 <div className="inspector-form">
                   <label><span>Name</span><input value={selectedStage.name} onChange={(event) => updateStage({ name: event.target.value })} placeholder="Name this stage" /></label>
                   <label><span>Type</span><SearchableSelect value={selectedStage.iconKey} options={stageTypes.map((type) => ({ value: type.key, label: type.label }))} onChange={(value) => changeType(value as StageKind)} ariaLabel="Stage type" /></label>
-                  <label><span>Platform</span><SearchableSelect value={selectedStage.platform} options={platforms.map((platform) => ({ value: platform, label: platform }))} onChange={(value) => updateStage({ platform: value })} ariaLabel="Stage platform" /></label>
+                  <label><span>Platform</span><SearchableSelect value={selectedStage.platform} options={platforms.map((platform) => ({ value: platform, label: platform }))} onChange={(value) => updateStage({ platform: value })} ariaLabel="Stage platform" allowCustom /></label>
                 </div>
-                <div className="properties-section"><div className="properties-heading"><div><span className="process-eyebrow">CUSTOM DATA</span><strong>Properties</strong></div><div className="property-add-wrap"><button className="add-property-button" onClick={() => setShowPropertyMenu((open) => !open)}>＋ Add property</button>{showPropertyMenu && <div className="floating-menu property-menu"><small>CHOOSE A PROPERTY</small>{propertyPresets.filter((preset) => !selectedStage.properties.some((property) => propertyKind(property) === preset.kind)).map((preset) => <button key={preset.kind} onClick={() => addProperty(preset)}>{preset.label}<span>+</span></button>)}<button onClick={() => addProperty()}><em>＋</em> Custom property</button></div>}</div></div>
+                {stageConfigNotes[selectedStage.iconKey as StageKind] && (
+                  <div className="stage-config-note">
+                    <strong>{stageConfigNotes[selectedStage.iconKey as StageKind]!.title}</strong>
+                    <span>{stageConfigNotes[selectedStage.iconKey as StageKind]!.description}</span>
+                  </div>
+                )}
+                <div className="properties-section"><div className="properties-heading"><div><span className="process-eyebrow">CUSTOM DATA</span><strong>Properties</strong></div><div className="property-add-wrap"><button className="add-property-button" onClick={() => setShowPropertyMenu((open) => !open)}>＋ Add property</button>{showPropertyMenu && <div className="floating-menu property-menu"><small>CHOOSE A PROPERTY</small>{universalPropertyPresets.filter((preset) => !selectedStage.properties.some((property) => propertyKind(property) === preset.kind)).map((preset) => <button key={preset.kind} onClick={() => addProperty(preset)}>{preset.label}<span>+</span></button>)}<button onClick={() => addProperty()}><em>＋</em> Custom property</button></div>}</div></div>
                   <p className="properties-help">Add the metrics your team uses to describe this stage.</p>
                   <div className="property-list">
-                    {selectedStage.properties.map((property) => { const kind = propertyKind(property); const numericKind = kind === "cost" || kind === "duration" || kind === "sla" || kind === "rows"; return <div className={`property-row property-${kind}`} key={property.id}><input value={property.name} onChange={(event) => updateProperty(property.id, { name: event.target.value })} aria-label="Property name" /><span>:</span><input className="property-value-input" type={numericKind ? "number" : "text"} min={numericKind ? "0" : undefined} step={kind === "cost" ? "1" : undefined} inputMode={numericKind ? "numeric" : undefined} value={property.value} onChange={(event) => updateProperty(property.id, { value: event.target.value })} placeholder={numericKind ? "0" : "Add value"} aria-label={`${property.name} value`} />{kind === "cost" && <SearchableSelect className="property-meta-select" value={property.currency ?? "USD"} options={currencies.map((currency) => ({ value: currency, label: currency }))} onChange={(value) => updateProperty(property.id, { currency: value })} ariaLabel={`${property.name} currency`} />}{(kind === "duration" || kind === "sla") && <SearchableSelect className="property-meta-select" value={property.unit ?? (kind === "sla" ? "days" : "hours")} options={durationUnits.map((unit) => ({ value: unit, label: unit }))} onChange={(value) => updateProperty(property.id, { unit: value })} ariaLabel={`${property.name} unit`} />}<button onClick={() => removeProperty(property.id)} aria-label={`Remove ${property.name} property`}>×</button></div>; })}
+                    {selectedStage.properties.map((property) => (
+                      <StagePropertyRow key={property.id} property={property} onUpdate={updateProperty} onRemove={removeProperty} />
+                    ))}
                     {selectedStage.properties.length === 0 && <div className="properties-empty"><span>⌁</span><p>No custom properties yet.<br />Add duration, cost, rows, or anything useful.</p></div>}
                   </div>
                 </div>
+                {stagePropertyPresets[selectedStage.iconKey as StageKind]?.length > 0 && (
+                  <div className="stage-property-quick-add">
+                    <span>{stageQuickAddLabel(selectedStage.iconKey as StageKind)}</span>
+                    <div>
+                      {stagePropertyPresets[selectedStage.iconKey as StageKind]
+                        .filter((preset) => !selectedStage.properties.some((property) => propertyKind(property) === preset.kind))
+                        .map((preset) => (
+                          <button key={preset.kind} onClick={() => addProperty(preset)}>+ {preset.label}</button>
+                        ))}
+                    </div>
+                  </div>
+                )}
                 <label className="notes-field"><span>Notes <em>Optional</em></span><textarea placeholder="Add context for your team..." rows={3} /></label>
               </>
             ) : selectedEdge ? (
