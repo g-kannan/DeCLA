@@ -16,7 +16,7 @@ type StageIconProps = {
 const ICON_ROOT = "/icons/stages";
 
 const icons = {
-  agent: { file: "agent.svg", label: "Agent" },
+  agent: { file: "agent.svg", label: "AI Agent" },
   integrationTool: { file: "integration-tool.svg", label: "Integration/Tool" },
   analytics: { file: "analytics.svg", label: "Analytics" },
   businessRule: { file: "business-rule.svg", label: "Business rule" },

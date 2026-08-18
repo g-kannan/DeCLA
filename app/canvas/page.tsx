@@ -1,12 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties } from "react";
 import { AppShell } from "@/app/components/app-shell";
-import { CANVAS_STORAGE_KEY, nextCanvasVersion, normalizeCanvasEdges, normalizeCanvasStages, readCanvasVersions, writeCanvasDraft, writeCanvasVersions, type CanvasEdge, type CanvasEdgeLineStyle, type CanvasEnvironment, type CanvasStage, type CanvasStageIconKey, type CanvasStatus, type CanvasVersion, type PropertyKind, type StageProperty } from "@/lib/local-canvas";
+import { SearchableSelect } from "@/app/components/searchable-select";
+import { StagePropertyRow } from "@/app/components/stage-property-row";
+import { CANVAS_STORAGE_KEY, nextCanvasVersion, normalizeCanvasEdges, normalizeCanvasStages, readCanvasVersions, writeCanvasDraft, writeCanvasVersions, type CanvasEdge, type CanvasEdgeLineStyle, type CanvasEnvironment, type CanvasStage, type CanvasStatus, type CanvasVersion, type StageProperty } from "@/lib/local-canvas";
+import { defaultStageProperties, platformsForStage, propertyKind, stageConfigNotes, stagePropertyPresets, stageQuickAddLabel, universalPropertyPresets, type PropertyPreset, type StageKind } from "@/lib/stage-properties";
 import { StageIcon } from "@/lib/stage-icons";
+import { useToastMessage } from "@/lib/use-toast-message";
+import { useDismissOnOutsideClick } from "@/lib/use-dismiss-on-outside-click";
 import { FlowCanvas, getAutoLayout } from "./flow-canvas";
-
-type StageKind = Exclude<CanvasStageIconKey, "analytics">;
 
 const stageTypes: { label: string; key: StageKind; color: string }[] = [
   { label: "Input", key: "source", color: "#2A2ACF" },
@@ -20,20 +23,12 @@ const stageTypes: { label: string; key: StageKind; color: string }[] = [
   { label: "Automation", key: "terminal", color: "#2A2ACF" },
   { label: "Feedback Loop", key: "feedback-loop", color: "#0F766E" },
   { label: "Alert", key: "alert", color: "#DC2626" },
-  { label: "Agent", key: "agent", color: "#7C3AED" },
+  { label: "AI Agent", key: "agent", color: "#7C3AED" },
   { label: "Integration/Tool", key: "integration-tool", color: "#2563EB" },
 ];
 
-const platforms = ["OpenAI", "Anthropic", "Google Gemini", "Azure OpenAI", "AWS Bedrock", "Streamlit", "Gradio", "React", "Slack", "Microsoft Teams", "Salesforce", "HubSpot", "Snowflake", "Databricks", "dbt", "AWS", "Other"];
 const durationUnits = ["mins", "hours", "days"];
 const currencies = ["USD", "EUR", "GBP", "INR"];
-const propertyPresets: { label: string; kind: PropertyKind; unit?: string; currency?: string }[] = [
-  { label: "Duration", kind: "duration", unit: "hours" },
-  { label: "Cost", kind: "cost", currency: "USD" },
-  { label: "Rows", kind: "rows", unit: "rows" },
-  { label: "Owner", kind: "owner" },
-  { label: "SLA", kind: "sla", unit: "days" },
-];
 const statusOptions: { value: CanvasStatus; label: string }[] = [
   { value: "draft", label: "Draft" },
   { value: "under-review", label: "Under review" },
@@ -52,7 +47,7 @@ const seedStages: CanvasStage[] = [
     id: "forecast-ingestion",
     name: "Ingest weekly forecast files",
     type: "Input",
-    platform: "Databricks",
+    platform: "SharePoint",
     iconKey: "source",
     color: "#2A2ACF",
     x: 350,
@@ -614,41 +609,6 @@ function formatShortDate(date: string) {
   return new Intl.DateTimeFormat(undefined, { day: "2-digit", month: "short", year: "numeric" }).format(new Date(`${date}T00:00:00`));
 }
 
-function propertyKind(property: StageProperty): PropertyKind {
-  if (property.kind) return property.kind;
-  const name = property.name.toLowerCase();
-  if (name.includes("duration")) return "duration";
-  if (name.includes("cost")) return "cost";
-  if (name.includes("row")) return "rows";
-  if (name.includes("owner")) return "owner";
-  if (name.includes("sla")) return "sla";
-  return "custom";
-}
-
-type SearchableOption = { value: string; label: string };
-
-function SearchableSelect({ value, options, onChange, ariaLabel, className = "" }: { value: string; options: SearchableOption[]; onChange: (value: string) => void; ariaLabel: string; className?: string }) {
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const wrapRef = useRef<HTMLDivElement>(null);
-  const selected = options.find((option) => option.value === value)?.label ?? value;
-  const filtered = options.filter((option) => option.label.toLowerCase().includes(query.toLowerCase()));
-
-  useEffect(() => {
-    if (!open) return;
-    function handleOutside(event: MouseEvent) {
-      if (wrapRef.current && !wrapRef.current.contains(event.target as Node)) {
-        setOpen(false);
-        setQuery("");
-      }
-    }
-    document.addEventListener("mousedown", handleOutside);
-    return () => document.removeEventListener("mousedown", handleOutside);
-  }, [open]);
-
-  return <div ref={wrapRef} className={`searchable-select ${className}`.trim()}><button type="button" className="searchable-select-trigger" onClick={() => { setOpen((current) => !current); setQuery(""); }} aria-label={ariaLabel} aria-expanded={open}>{selected || "Select..."}<span>⌄</span></button>{open && <div className="searchable-select-menu"><input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Escape") setOpen(false); }} placeholder="Search..." aria-label={`Search ${ariaLabel}`} />{filtered.length ? <div className="searchable-select-options">{filtered.map((option) => <button type="button" key={option.value} className={option.value === value ? "selected" : ""} onClick={() => { onChange(option.value); setOpen(false); setQuery(""); }}>{option.label}</button>)}</div> : <small className="searchable-select-empty">No matches</small>}</div>}</div>;
-}
-
 export default function DecisionCanvasPage() {
   const [processName, setProcessName] = useState("");
   const [projectStatus, setProjectStatus] = useState<CanvasStatus>("draft");
@@ -665,7 +625,7 @@ export default function DecisionCanvasPage() {
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [showPropertyMenu, setShowPropertyMenu] = useState(false);
-  const [message, setMessage] = useState("");
+  const { message, setMessage, clearMessage } = useToastMessage();
   const [hydrated, setHydrated] = useState(false);
   const [versions, setVersions] = useState<CanvasVersion[]>([]);
   const [showExportMenu, setShowExportMenu] = useState(false);
@@ -680,6 +640,31 @@ export default function DecisionCanvasPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const searchInputRef = useRef<HTMLInputElement>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
+
+  const closeFloatingMenus = useCallback(() => {
+    setShowAddMenu(false);
+    setShowPropertyMenu(false);
+    setShowExportMenu(false);
+    setShowExamplesMenu(false);
+    setShowArrangeMenu(false);
+    setShowLineStyleMenu(false);
+  }, []);
+
+  function toggleExclusiveMenu(isOpen: boolean, setOpen: (open: boolean) => void) {
+    if (isOpen) {
+      setOpen(false);
+      return;
+    }
+    closeFloatingMenus();
+    setOpen(true);
+  }
+
+  const addStageMenuRef = useDismissOnOutsideClick(showAddMenu, () => setShowAddMenu(false));
+  const arrangeMenuRef = useDismissOnOutsideClick(showArrangeMenu, () => setShowArrangeMenu(false));
+  const lineStyleMenuRef = useDismissOnOutsideClick(showLineStyleMenu, () => setShowLineStyleMenu(false));
+  const examplesMenuRef = useDismissOnOutsideClick(showExamplesMenu, () => setShowExamplesMenu(false));
+  const exportMenuRef = useDismissOnOutsideClick(showExportMenu, () => setShowExportMenu(false));
+  const propertyMenuRef = useDismissOnOutsideClick(showPropertyMenu, () => setShowPropertyMenu(false));
 
   const searchMatchSet = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -805,7 +790,8 @@ export default function DecisionCanvasPage() {
       const decisionCount = stages.filter((s) => s.iconKey === "decision" && s.id !== selectedStage.id).length + 1;
       nextName = `Decision d${decisionCount}`;
     }
-    updateStage({ type: next.label, iconKey: next.key, color: next.color, ...(nextName ? { name: nextName } : {}) });
+    const typeDefaults = selectedStage?.properties.length === 0 ? defaultStageProperties(key, createId) : undefined;
+    updateStage({ type: next.label, iconKey: next.key, color: next.color, ...(nextName ? { name: nextName } : {}), ...(typeDefaults ? { properties: typeDefaults } : {}) });
   }
 
   function addStage(kind: (typeof stageTypes)[number]) {
@@ -825,12 +811,12 @@ export default function DecisionCanvasPage() {
 
     const next: CanvasStage = {
       id: createId("stage"),
-      name: defaultName,
+      name: kind.key === "agent" ? "New AI Agent" : defaultName,
       type: kind.label,
       platform: "Other",
       iconKey: kind.key,
       color: kind.color,
-      properties: [],
+      properties: defaultStageProperties(kind.key, createId),
       x,
       y,
     };
@@ -896,14 +882,14 @@ export default function DecisionCanvasPage() {
     setMessage("Spacious auto-arrange applied (zero overlap)");
   }
 
-  function addProperty(definition?: (typeof propertyPresets)[number]) {
+  function addProperty(definition?: PropertyPreset) {
     if (!selectedStage) return;
     const baseName = definition?.label ?? "New property";
     const existingNames = new Set(selectedStage.properties.map((property) => property.name.toLowerCase()));
     let name = baseName;
     let suffix = 2;
     while (existingNames.has(name.toLowerCase())) name = `${baseName} ${suffix++}`;
-    const property = { id: createId("property"), name, value: "", kind: definition?.kind ?? "custom", unit: definition?.unit, currency: definition?.currency };
+    const property = { id: createId("property"), name, value: definition?.defaultValue ?? "", kind: definition?.kind ?? "custom", unit: definition?.unit, currency: definition?.currency };
     updateStage({ properties: [...selectedStage.properties, property] });
     setShowPropertyMenu(false);
   }
@@ -1435,10 +1421,10 @@ function getEdgeSvgPath(
           </div>
           <div className="process-heading-actions">
             <div className="header-status-group"><label className={`project-status-control header-project-status ${projectStatus}`}><span>PROJECT STATUS</span><SearchableSelect value={projectStatus} options={statusOptions} onChange={(value) => setProjectStatus(value as CanvasStatus)} ariaLabel="Project status" /></label></div>
-            <div className="export-menu-wrap"><button className="secondary-button" onClick={() => setShowExamplesMenu((open) => !open)}>Examples <span className="button-caret">⌄</span></button>{showExamplesMenu && <div className="floating-menu export-menu"><small>LOAD EXAMPLE WORKFLOW</small><button onClick={() => { loadExample("return-request"); setShowExamplesMenu(false); }}>Customer return request</button><button onClick={() => { loadExample("forecast"); setShowExamplesMenu(false); }}>Weekly forecast analysis</button></div>}</div>
+            <div className="export-menu-wrap" ref={examplesMenuRef}><button className="secondary-button" onClick={() => toggleExclusiveMenu(showExamplesMenu, setShowExamplesMenu)}>Examples <span className="button-caret">⌄</span></button>{showExamplesMenu && <div className="floating-menu export-menu"><small>LOAD EXAMPLE WORKFLOW</small><button onClick={() => { loadExample("return-request"); setShowExamplesMenu(false); }}>Customer return request</button><button onClick={() => { loadExample("forecast"); setShowExamplesMenu(false); }}>Weekly forecast analysis</button></div>}</div>
             <button className="secondary-button" onClick={() => setMessage("Share link copied to clipboard")}>Share</button>
             <button className="secondary-button" onClick={saveDraft}>Save version</button>
-            <input ref={importInputRef} className="hidden-file-input" type="file" accept=".decla" onChange={handleImport} /><button className="secondary-button" onClick={() => importInputRef.current?.click()}>Import file</button><button className="primary-button" onClick={saveDeclaFile}>Save to File</button><div className="export-menu-wrap"><button className="secondary-button" onClick={() => setShowExportMenu((open) => !open)}>Export <span className="button-caret">⌄</span></button>{showExportMenu && <div className="floating-menu export-menu"><small>EXPORT CANVAS</small><button onClick={exportSvg}>SVG image <span>.svg</span></button><button onClick={exportPng}>PNG image <span>.png</span></button></div>}</div><button className="clear-canvas-button" onClick={clearWorkspace} disabled={!Boolean(processName || projectStatus !== "draft" || environment !== "development" || goLiveDate || projectBudget || projectSla || versionTags.length || stages.length || versions.length)}>Clear workspace</button>
+            <input ref={importInputRef} className="hidden-file-input" type="file" accept=".decla" onChange={handleImport} /><button className="secondary-button" onClick={() => importInputRef.current?.click()}>Import file</button><button className="primary-button" onClick={saveDeclaFile}>Save to File</button><div className="export-menu-wrap" ref={exportMenuRef}><button className="secondary-button" onClick={() => toggleExclusiveMenu(showExportMenu, setShowExportMenu)}>Export <span className="button-caret">⌄</span></button>{showExportMenu && <div className="floating-menu export-menu"><small>EXPORT CANVAS</small><button onClick={exportSvg}>SVG image <span>.svg</span></button><button onClick={exportPng}>PNG image <span>.png</span></button></div>}</div><button className="clear-canvas-button" onClick={clearWorkspace} disabled={!Boolean(processName || projectStatus !== "draft" || environment !== "development" || goLiveDate || projectBudget || projectSla || versionTags.length || stages.length || versions.length)}>Clear workspace</button>
           </div>
         </header>
 
@@ -1484,90 +1470,94 @@ function getEdgeSvgPath(
           </div>
         </section>
 
-        {message && <button className="process-toast" onClick={() => setMessage("")} aria-label="Dismiss message">{message}<span>×</span></button>}
+        {message && <button className="process-toast" onClick={clearMessage} aria-label="Dismiss message">{message}<span>×</span></button>}
 
         <div className="process-layout">
           <section className="process-canvas-panel">
             <div className="canvas-toolbar">
-              <div className="canvas-toolbar-group">
-                <span className="toolbar-divider" />
-                <div className="add-stage-wrap">
-                  <button className="add-stage-button" onClick={() => setShowAddMenu((open) => !open)}>＋ Add stage</button>
-                  {showAddMenu && <div className="floating-menu stage-menu">
-                    <small>ADD A WORKFLOW STAGE</small>
-                    {stageTypes.map((kind) => <button key={kind.key} onClick={() => addStage(kind)}><span className="menu-color" style={{ background: kind.color }} />{kind.label}<span>+</span></button>)}
-                  </div>}
+              <div className="canvas-toolbar-row">
+                <div className="canvas-toolbar-group canvas-toolbar-actions">
+                  <span className="toolbar-divider" />
+                  <div className="add-stage-wrap" ref={addStageMenuRef}>
+                    <button className="add-stage-button" onClick={() => toggleExclusiveMenu(showAddMenu, setShowAddMenu)}>＋ Add stage</button>
+                    {showAddMenu && <div className="floating-menu stage-menu">
+                      <small>ADD A WORKFLOW STAGE</small>
+                      {stageTypes.map((kind) => <button key={kind.key} onClick={() => addStage(kind)}><span className="menu-color" style={{ background: kind.color }} />{kind.label}<span>+</span></button>)}
+                    </div>}
+                  </div>
+                  <div className="export-menu-wrap" ref={arrangeMenuRef}>
+                    <button className="secondary-button" onClick={() => toggleExclusiveMenu(showArrangeMenu, setShowArrangeMenu)}>📐 Auto arrange <span className="button-caret">⌄</span></button>
+                    {showArrangeMenu && (
+                      <div className="floating-menu export-menu">
+                        <small>LAYOUT & SPACING</small>
+                        <button onClick={() => handleAutoArrange("TB")}>↓ Vertical flow (Top to Bottom)</button>
+                        <button onClick={() => handleAutoArrange("LR")}>→ Horizontal flow (Left to Right)</button>
+                        <button onClick={handleSpaciousArrange}>↔ Expand spacing (Zero overlap)</button>
+                      </div>
+                    )}
+                  </div>
+                  <div className="export-menu-wrap" ref={lineStyleMenuRef}>
+                    <button className="secondary-button" onClick={() => toggleExclusiveMenu(showLineStyleMenu, setShowLineStyleMenu)}>⚡ Line style <span className="button-caret">⌄</span></button>
+                    {showLineStyleMenu && (
+                      <div className="floating-menu export-menu">
+                        <small>EDGE ROUTING STYLE</small>
+                        <button onClick={() => { setEdgeLineStyle("smoothstep"); setShowLineStyleMenu(false); setMessage("Line style set to L-shaped (Smooth)"); }}>╰─╯ L-shaped (Smooth)</button>
+                        <button onClick={() => { setEdgeLineStyle("step"); setShowLineStyleMenu(false); setMessage("Line style set to L-shaped (Step)"); }}>└─┐ L-shaped (Step)</button>
+                        <button onClick={() => { setEdgeLineStyle("straight"); setShowLineStyleMenu(false); setMessage("Line style set to Straight (Free flow)"); }}>─── Straight (Free flow)</button>
+                        <button onClick={() => { setEdgeLineStyle("bezier"); setShowLineStyleMenu(false); setMessage("Line style set to Curved (Bezier)"); }}>∿ Curved (Bezier)</button>
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    className={`secondary-button${wordWrap ? " active" : ""}`}
+                    onClick={() => { setWordWrap((value) => !value); setMessage(wordWrap ? "Standard stage labels" : "Word wrap enabled"); }}
+                    aria-pressed={wordWrap}
+                  >
+                    Word Wrap
+                  </button>
+                  <button className="secondary-button" onClick={clearCanvasOnly} disabled={!stages.length && !edges.length}>Clear canvas</button>
                 </div>
-                <div className="export-menu-wrap">
-                  <button className="secondary-button" onClick={() => setShowArrangeMenu((open) => !open)}>📐 Auto arrange <span className="button-caret">⌄</span></button>
-                  {showArrangeMenu && (
-                    <div className="floating-menu export-menu">
-                      <small>LAYOUT & SPACING</small>
-                      <button onClick={() => handleAutoArrange("TB")}>↓ Vertical flow (Top to Bottom)</button>
-                      <button onClick={() => handleAutoArrange("LR")}>→ Horizontal flow (Left to Right)</button>
-                      <button onClick={handleSpaciousArrange}>↔ Expand spacing (Zero overlap)</button>
-                    </div>
-                  )}
+                <div className="canvas-toolbar-group canvas-tools-right">
+                  <div className="canvas-search-wrap">
+                    <span className="canvas-search-icon" aria-hidden="true">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="11" cy="11" r="8" />
+                        <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                      </svg>
+                    </span>
+                    <input
+                      ref={searchInputRef}
+                      type="text"
+                      className="canvas-search-input"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Search nodes (e.g. intake, LLM)..."
+                      aria-label="Search and highlight canvas nodes"
+                    />
+                    {searchQuery ? (
+                      <div className="canvas-search-badge-wrap">
+                        <span className={`search-match-count ${searchMatchSet.size > 0 ? "has-matches" : "no-matches"}`}>
+                          {searchMatchSet.size} {searchMatchSet.size === 1 ? "match" : "matches"}
+                        </span>
+                        <button
+                          className="canvas-search-clear"
+                          onClick={() => { setSearchQuery(""); searchInputRef.current?.focus(); }}
+                          title="Clear search (Esc)"
+                          aria-label="Clear node search"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ) : (
+                      <kbd className="canvas-search-kbd">⌘F</kbd>
+                    )}
+                  </div>
                 </div>
-                <div className="export-menu-wrap">
-                  <button className="secondary-button" onClick={() => setShowLineStyleMenu((open) => !open)}>⚡ Line style <span className="button-caret">⌄</span></button>
-                  {showLineStyleMenu && (
-                    <div className="floating-menu export-menu">
-                      <small>EDGE ROUTING STYLE</small>
-                      <button onClick={() => { setEdgeLineStyle("smoothstep"); setShowLineStyleMenu(false); setMessage("Line style set to L-shaped (Smooth)"); }}>╰─╯ L-shaped (Smooth)</button>
-                      <button onClick={() => { setEdgeLineStyle("step"); setShowLineStyleMenu(false); setMessage("Line style set to L-shaped (Step)"); }}>└─┐ L-shaped (Step)</button>
-                      <button onClick={() => { setEdgeLineStyle("straight"); setShowLineStyleMenu(false); setMessage("Line style set to Straight (Free flow)"); }}>─── Straight (Free flow)</button>
-                      <button onClick={() => { setEdgeLineStyle("bezier"); setShowLineStyleMenu(false); setMessage("Line style set to Curved (Bezier)"); }}>∿ Curved (Bezier)</button>
-                    </div>
-                  )}
-                </div>
-                <button
-                  className={`secondary-button${wordWrap ? " active" : ""}`}
-                  onClick={() => { setWordWrap((value) => !value); setMessage(wordWrap ? "Standard stage labels" : "Word wrap enabled"); }}
-                  aria-pressed={wordWrap}
-                >
-                  Word Wrap
-                </button>
-                <button className="secondary-button" onClick={clearCanvasOnly} disabled={!stages.length && !edges.length}>Clear canvas</button>
               </div>
-              <div className="canvas-toolbar-group canvas-tools-right">
+              <div className="canvas-toolbar-stats">
                 <span className="canvas-stat"><strong>{stages.length}</strong> stages</span>
                 <span className="canvas-stat"><strong>{edges.length}</strong> connections</span>
                 <span className="canvas-stat"><strong>{totalProperties}</strong> properties</span>
-                <div className="canvas-search-wrap">
-                  <span className="canvas-search-icon" aria-hidden="true">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                      <circle cx="11" cy="11" r="8" />
-                      <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                    </svg>
-                  </span>
-                  <input
-                    ref={searchInputRef}
-                    type="text"
-                    className="canvas-search-input"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search nodes (e.g. intake, LLM)..."
-                    aria-label="Search and highlight canvas nodes"
-                  />
-                  {searchQuery ? (
-                    <div className="canvas-search-badge-wrap">
-                      <span className={`search-match-count ${searchMatchSet.size > 0 ? "has-matches" : "no-matches"}`}>
-                        {searchMatchSet.size} {searchMatchSet.size === 1 ? "match" : "matches"}
-                      </span>
-                      <button
-                        className="canvas-search-clear"
-                        onClick={() => { setSearchQuery(""); searchInputRef.current?.focus(); }}
-                        title="Clear search (Esc)"
-                        aria-label="Clear node search"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  ) : (
-                    <kbd className="canvas-search-kbd">⌘F</kbd>
-                  )}
-                </div>
               </div>
             </div>
 
@@ -1579,7 +1569,7 @@ function getEdgeSvgPath(
                   <h2>Start mapping your process</h2>
                   <p>Add a stage to begin building your decision workflow.</p>
                   <div>
-                    <button className="primary-button" onClick={() => setShowAddMenu(true)}>＋ Add first stage</button>
+                    <button className="primary-button" onClick={() => { closeFloatingMenus(); setShowAddMenu(true); }}>＋ Add first stage</button>
                   </div>
                 </div>
               ) : (
@@ -1597,7 +1587,7 @@ function getEdgeSvgPath(
                   onStagePositionsChange={handleStagePositionsChange}
                   onEdgeCreated={handleEdgeCreated}
                   onEdgeDeleted={handleEdgeDeleted}
-                  onAddStageRequest={() => setShowAddMenu(true)}
+                  onAddStageRequest={() => { closeFloatingMenus(); setShowAddMenu(true); }}
                 />
               )}
             </div>
@@ -1616,15 +1606,35 @@ function getEdgeSvgPath(
                 <div className="inspector-form">
                   <label><span>Name</span><input value={selectedStage.name} onChange={(event) => updateStage({ name: event.target.value })} placeholder="Name this stage" /></label>
                   <label><span>Type</span><SearchableSelect value={selectedStage.iconKey} options={stageTypes.map((type) => ({ value: type.key, label: type.label }))} onChange={(value) => changeType(value as StageKind)} ariaLabel="Stage type" /></label>
-                  <label><span>Platform</span><SearchableSelect value={selectedStage.platform} options={platforms.map((platform) => ({ value: platform, label: platform }))} onChange={(value) => updateStage({ platform: value })} ariaLabel="Stage platform" /></label>
+                  <label><span>Platform</span><SearchableSelect value={selectedStage.platform} options={platformsForStage(selectedStage.iconKey as StageKind).map((platform) => ({ value: platform, label: platform }))} onChange={(value) => updateStage({ platform: value })} ariaLabel="Stage platform" allowCustom /></label>
                 </div>
-                <div className="properties-section"><div className="properties-heading"><div><span className="process-eyebrow">CUSTOM DATA</span><strong>Properties</strong></div><div className="property-add-wrap"><button className="add-property-button" onClick={() => setShowPropertyMenu((open) => !open)}>＋ Add property</button>{showPropertyMenu && <div className="floating-menu property-menu"><small>CHOOSE A PROPERTY</small>{propertyPresets.filter((preset) => !selectedStage.properties.some((property) => propertyKind(property) === preset.kind)).map((preset) => <button key={preset.kind} onClick={() => addProperty(preset)}>{preset.label}<span>+</span></button>)}<button onClick={() => addProperty()}><em>＋</em> Custom property</button></div>}</div></div>
+                {stageConfigNotes[selectedStage.iconKey as StageKind] && (
+                  <div className="stage-config-note">
+                    <strong>{stageConfigNotes[selectedStage.iconKey as StageKind]!.title}</strong>
+                    <span>{stageConfigNotes[selectedStage.iconKey as StageKind]!.description}</span>
+                  </div>
+                )}
+                <div className="properties-section"><div className="properties-heading"><div><span className="process-eyebrow">CUSTOM DATA</span><strong>Properties</strong></div><div className="property-add-wrap" ref={propertyMenuRef}><button className="add-property-button" onClick={() => toggleExclusiveMenu(showPropertyMenu, setShowPropertyMenu)}>＋ Add property</button>{showPropertyMenu && <div className="floating-menu property-menu"><small>CHOOSE A PROPERTY</small>{universalPropertyPresets.filter((preset) => !selectedStage.properties.some((property) => propertyKind(property) === preset.kind)).map((preset) => <button key={preset.kind} onClick={() => addProperty(preset)}>{preset.label}<span>+</span></button>)}<button onClick={() => addProperty()}><em>＋</em> Custom property</button></div>}</div></div>
                   <p className="properties-help">Add the metrics your team uses to describe this stage.</p>
                   <div className="property-list">
-                    {selectedStage.properties.map((property) => { const kind = propertyKind(property); const numericKind = kind === "cost" || kind === "duration" || kind === "sla" || kind === "rows"; return <div className={`property-row property-${kind}`} key={property.id}><input value={property.name} onChange={(event) => updateProperty(property.id, { name: event.target.value })} aria-label="Property name" /><span>:</span><input className="property-value-input" type={numericKind ? "number" : "text"} min={numericKind ? "0" : undefined} step={kind === "cost" ? "1" : undefined} inputMode={numericKind ? "numeric" : undefined} value={property.value} onChange={(event) => updateProperty(property.id, { value: event.target.value })} placeholder={numericKind ? "0" : "Add value"} aria-label={`${property.name} value`} />{kind === "cost" && <SearchableSelect className="property-meta-select" value={property.currency ?? "USD"} options={currencies.map((currency) => ({ value: currency, label: currency }))} onChange={(value) => updateProperty(property.id, { currency: value })} ariaLabel={`${property.name} currency`} />}{(kind === "duration" || kind === "sla") && <SearchableSelect className="property-meta-select" value={property.unit ?? (kind === "sla" ? "days" : "hours")} options={durationUnits.map((unit) => ({ value: unit, label: unit }))} onChange={(value) => updateProperty(property.id, { unit: value })} ariaLabel={`${property.name} unit`} />}<button onClick={() => removeProperty(property.id)} aria-label={`Remove ${property.name} property`}>×</button></div>; })}
+                    {selectedStage.properties.map((property) => (
+                      <StagePropertyRow key={property.id} property={property} onUpdate={updateProperty} onRemove={removeProperty} />
+                    ))}
                     {selectedStage.properties.length === 0 && <div className="properties-empty"><span>⌁</span><p>No custom properties yet.<br />Add duration, cost, rows, or anything useful.</p></div>}
                   </div>
                 </div>
+                {stagePropertyPresets[selectedStage.iconKey as StageKind]?.length > 0 && (
+                  <div className="stage-property-quick-add">
+                    <span>{stageQuickAddLabel(selectedStage.iconKey as StageKind)}</span>
+                    <div>
+                      {stagePropertyPresets[selectedStage.iconKey as StageKind]
+                        .filter((preset) => !selectedStage.properties.some((property) => propertyKind(property) === preset.kind))
+                        .map((preset) => (
+                          <button key={preset.kind} onClick={() => addProperty(preset)}>+ {preset.label}</button>
+                        ))}
+                    </div>
+                  </div>
+                )}
                 <label className="notes-field"><span>Notes <em>Optional</em></span><textarea placeholder="Add context for your team..." rows={3} /></label>
               </>
             ) : selectedEdge ? (

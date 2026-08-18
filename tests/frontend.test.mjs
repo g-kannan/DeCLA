@@ -125,7 +125,7 @@ test("frontend exposes feedback loop and alert stages with a single word wrap vi
   ]);
   assert.match(canvas, /label: "Feedback Loop", key: "feedback-loop"/);
   assert.match(canvas, /label: "Alert", key: "alert"/);
-  assert.match(canvas, /label: "Agent", key: "agent"/);
+  assert.match(canvas, /label: "AI Agent", key: "agent"/);
   assert.match(canvas, /label: "Integration\/Tool", key: "integration-tool"/);
   assert.match(iconLibrary, /feedback-loop\.svg/);
   assert.match(iconLibrary, /alert\.svg/);
@@ -162,6 +162,26 @@ test("frontend supports customer return request example workflow", async () => {
   assert.match(canvas, /D4: Is an automatic refund permitted\?/);
   assert.match(canvas, /returnRequestSeedStages/);
   assert.match(canvas, /returnRequestSeedEdges/);
+});
+
+test("frontend exposes stage-specific property presets with combobox support", async () => {
+  const [canvas, stageProperties, searchableSelect, propertyRow] = await Promise.all([
+    readFile(new URL("../app/canvas/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../lib/stage-properties.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/components/searchable-select.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/components/stage-property-row.tsx", import.meta.url), "utf8"),
+  ]);
+  assert.match(stageProperties, /stagePropertyPresets/);
+  assert.match(stageProperties, /propertyValueOptions/);
+  assert.match(stageProperties, /defaultStageProperties/);
+  assert.match(canvas, /stagePropertyPresets/);
+  assert.match(canvas, /StagePropertyRow/);
+  assert.match(canvas, /stage-config-note/);
+  assert.match(searchableSelect, /allowCustom/);
+  assert.match(searchableSelect, /searchable-select-custom/);
+  assert.match(propertyRow, /property-value-select/);
+  assert.match(stageProperties, /decision:/);
+  assert.match(stageProperties, /agent:/);
 });
 
 test("project property dropdowns overlay the fixed properties strip", async () => {
