@@ -162,6 +162,9 @@ test("frontend supports customer return request example workflow", async () => {
   assert.match(canvas, /D4: Is an automatic refund permitted\?/);
   assert.match(canvas, /returnRequestSeedStages/);
   assert.match(canvas, /returnRequestSeedEdges/);
+  assert.match(canvas, /id: "ret-10-audit-trail"/);
+  assert.match(canvas, /toStageId: "ret-10-audit-trail"/);
+  assert.doesNotMatch(canvas, /ret-10-records-audit/);
 });
 
 test("frontend exposes stage-specific property presets with combobox support", async () => {
