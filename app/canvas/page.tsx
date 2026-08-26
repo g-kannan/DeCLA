@@ -516,7 +516,7 @@ const returnRequestSeedStages: CanvasStage[] = [
     ],
   },
   {
-    id: "ret-10-records-audit",
+    id: "ret-10-audit-trail",
     name: "Records audit trail and analytics",
     type: "Storage",
     platform: "Snowflake",
@@ -630,7 +630,6 @@ export default function DecisionCanvasPage() {
   const [versions, setVersions] = useState<CanvasVersion[]>([]);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showExamplesMenu, setShowExamplesMenu] = useState(false);
-  const [showArrangeMenu, setShowArrangeMenu] = useState(false);
   const [showLineStyleMenu, setShowLineStyleMenu] = useState(false);
   const [wordWrap, setWordWrap] = useState(false);
   const [versionTags, setVersionTags] = useState<string[]>([]);
@@ -646,7 +645,6 @@ export default function DecisionCanvasPage() {
     setShowPropertyMenu(false);
     setShowExportMenu(false);
     setShowExamplesMenu(false);
-    setShowArrangeMenu(false);
     setShowLineStyleMenu(false);
   }, []);
 
@@ -660,7 +658,6 @@ export default function DecisionCanvasPage() {
   }
 
   const addStageMenuRef = useDismissOnOutsideClick(showAddMenu, () => setShowAddMenu(false));
-  const arrangeMenuRef = useDismissOnOutsideClick(showArrangeMenu, () => setShowArrangeMenu(false));
   const lineStyleMenuRef = useDismissOnOutsideClick(showLineStyleMenu, () => setShowLineStyleMenu(false));
   const examplesMenuRef = useDismissOnOutsideClick(showExamplesMenu, () => setShowExamplesMenu(false));
   const exportMenuRef = useDismissOnOutsideClick(showExportMenu, () => setShowExportMenu(false));
@@ -858,28 +855,15 @@ export default function DecisionCanvasPage() {
     }));
   }
 
-  function handleAutoArrange(rankdir: "TB" | "LR") {
-    const arranged = getAutoLayout(stages, edges, rankdir, 85, 100);
+  function handleAutoArrange() {
+    const arranged = getAutoLayout(stages, edges);
     setStages((current) =>
       current.map((stage) => {
         const pos = arranged.get(stage.id);
         return pos ? { ...stage, x: pos.x, y: pos.y } : stage;
       }),
     );
-    setShowArrangeMenu(false);
-    setMessage(`Auto-arrange applied (${rankdir === "TB" ? "Vertical" : "Horizontal"})`);
-  }
-
-  function handleSpaciousArrange() {
-    const arranged = getAutoLayout(stages, edges, "LR", 115, 140);
-    setStages((current) =>
-      current.map((stage) => {
-        const pos = arranged.get(stage.id);
-        return pos ? { ...stage, x: pos.x, y: pos.y } : stage;
-      }),
-    );
-    setShowArrangeMenu(false);
-    setMessage("Spacious auto-arrange applied (zero overlap)");
+    setMessage("Layout arranged");
   }
 
   function addProperty(definition?: PropertyPreset) {
@@ -1472,7 +1456,7 @@ function getEdgeSvgPath(
 
         {message && <button className="process-toast" onClick={clearMessage} aria-label="Dismiss message">{message}<span>×</span></button>}
 
-        <div className="process-layout">
+        <div className={`process-layout${selectedStage || selectedEdge ? " has-inspector" : ""}`}>
           <section className="process-canvas-panel">
             <div className="canvas-toolbar">
               <div className="canvas-toolbar-row">
@@ -1485,17 +1469,7 @@ function getEdgeSvgPath(
                       {stageTypes.map((kind) => <button key={kind.key} onClick={() => addStage(kind)}><span className="menu-color" style={{ background: kind.color }} />{kind.label}<span>+</span></button>)}
                     </div>}
                   </div>
-                  <div className="export-menu-wrap" ref={arrangeMenuRef}>
-                    <button className="secondary-button" onClick={() => toggleExclusiveMenu(showArrangeMenu, setShowArrangeMenu)}>📐 Auto arrange <span className="button-caret">⌄</span></button>
-                    {showArrangeMenu && (
-                      <div className="floating-menu export-menu">
-                        <small>LAYOUT & SPACING</small>
-                        <button onClick={() => handleAutoArrange("TB")}>↓ Vertical flow (Top to Bottom)</button>
-                        <button onClick={() => handleAutoArrange("LR")}>→ Horizontal flow (Left to Right)</button>
-                        <button onClick={handleSpaciousArrange}>↔ Expand spacing (Zero overlap)</button>
-                      </div>
-                    )}
-                  </div>
+                  <button className="secondary-button" onClick={handleAutoArrange} title="Align stages into a readable left-to-right layout">Arrange</button>
                   <div className="export-menu-wrap" ref={lineStyleMenuRef}>
                     <button className="secondary-button" onClick={() => toggleExclusiveMenu(showLineStyleMenu, setShowLineStyleMenu)}>⚡ Line style <span className="button-caret">⌄</span></button>
                     {showLineStyleMenu && (
@@ -1598,6 +1572,7 @@ function getEdgeSvgPath(
             </div>
           </section>
 
+          {(selectedStage || selectedEdge) && (
           <aside className="inspector-panel">
             {selectedStage ? (
               <>
@@ -1696,15 +1671,9 @@ function getEdgeSvgPath(
                   Use a colour to visually distinguish branching outcomes.
                 </p>
               </>
-            ) : (
-              <div className="inspector-empty">
-                <span>◎</span>
-                <h2>Select a stage or edge</h2>
-                <p>Click a stage to edit its properties, or click a connection to label and colour it.</p>
-                <p className="inspector-empty-hint">Drag from a stage handle to create a new connection.</p>
-              </div>
-            )}
+            ) : null}
           </aside>
+          )}
         </div>
       </div>
     </AppShell>

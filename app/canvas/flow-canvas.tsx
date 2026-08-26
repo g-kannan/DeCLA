@@ -6,8 +6,8 @@
  * Phase 1: Any two stages can be connected; edges carry an optional label and color.
  * Phase 2: Decision nodes expose multiple source handles for branching.
  *
- * Layout: Dagre auto-layout runs when no stage has saved x/y coordinates.
- * Once a user drags a node, positions are persisted back to the CanvasStage array.
+ * Layout: Dagre auto-layout (left-to-right) runs when no stage has saved x/y
+ * coordinates, and again when the user clicks Arrange. Positions persist after drag.
  */
 
 import { useCallback, useEffect, useMemo, useRef, type CSSProperties } from "react";
@@ -52,16 +52,74 @@ const DECISION_NODE_SIZE = 210;
 
 // ─── Dagre auto-layout ────────────────────────────────────────────────────────
 
+type LaidOutNode = {
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rank: number;
+};
+
+function clusterIndex(value: number, gap: number): number {
+  return Math.round(value / Math.max(gap, 1));
+}
+
+function snapAlignedPositions(
+  nodes: LaidOutNode[],
+  rankdir: "TB" | "LR",
+): Map<string, XYPosition> {
+  const ranksVary = new Set(nodes.map((node) => node.rank)).size > 1;
+  const groups = new Map<number, LaidOutNode[]>();
+
+  for (const node of nodes) {
+    const key = ranksVary
+      ? node.rank
+      : clusterIndex(rankdir === "LR" ? node.x : node.y, 120);
+    const group = groups.get(key) ?? [];
+    group.push(node);
+    groups.set(key, group);
+  }
+
+  const positions = new Map<string, XYPosition>();
+
+  for (const group of groups.values()) {
+    if (rankdir === "LR") {
+      const colWidth = Math.max(...group.map((node) => node.width));
+      const centerX = group.reduce((sum, node) => sum + node.x, 0) / group.length;
+      const left = centerX - colWidth / 2;
+      for (const node of group) {
+        positions.set(node.id, {
+          x: Math.round(left + (colWidth - node.width) / 2),
+          y: Math.round(node.y - node.height / 2),
+        });
+      }
+    } else {
+      const rowHeight = Math.max(...group.map((node) => node.height));
+      const centerY = group.reduce((sum, node) => sum + node.y, 0) / group.length;
+      const top = centerY - rowHeight / 2;
+      for (const node of group) {
+        positions.set(node.id, {
+          x: Math.round(node.x - node.width / 2),
+          y: Math.round(top + (rowHeight - node.height) / 2),
+        });
+      }
+    }
+  }
+
+  return positions;
+}
+
 export function getAutoLayout(
   stages: Pick<CanvasStage, "id" | "iconKey">[],
   edges: Pick<CanvasEdge, "id" | "fromStageId" | "toStageId">[],
-  rankdir: "TB" | "LR" = "TB",
-  nodesep: number = 85,
-  ranksep: number = 100,
+  rankdir: "TB" | "LR" = "LR",
+  nodesep: number = 72,
+  ranksep: number = 160,
 ): Map<string, XYPosition> {
   const g = new dagre.graphlib.Graph({ multigraph: true });
   g.setDefaultEdgeLabel(() => ({}));
-  g.setGraph({ rankdir, ranksep, nodesep });
+  g.setGraph({ rankdir, ranksep, nodesep, edgesep: 40, marginx: 24, marginy: 24, align: "UL" });
 
   stages.forEach((stage) => {
     const isDecision = stage.iconKey === "decision";
@@ -79,15 +137,19 @@ export function getAutoLayout(
 
   dagre.layout(g);
 
-  const positions = new Map<string, XYPosition>();
-  stages.forEach((stage) => {
-    const { x, y, width, height } = g.node(stage.id);
-    positions.set(stage.id, {
-      x: Math.round(x - width / 2),
-      y: Math.round(y - height / 2),
-    });
+  const laidOut: LaidOutNode[] = stages.map((stage) => {
+    const node = g.node(stage.id) as LaidOutNode;
+    return {
+      id: stage.id,
+      x: node.x,
+      y: node.y,
+      width: node.width,
+      height: node.height,
+      rank: typeof node.rank === "number" ? node.rank : 0,
+    };
   });
-  return positions;
+
+  return snapAlignedPositions(laidOut, rankdir);
 }
 
 // ─── Types shared with page.tsx ───────────────────────────────────────────────

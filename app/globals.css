@@ -1339,7 +1339,8 @@ input:focus, select:focus, textarea:focus {
   background: var(--surface);
 }
 
-.process-layout { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 14px; align-items: stretch; }
+.process-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; align-items: stretch; }
+.process-layout.has-inspector { grid-template-columns: minmax(0, 1fr) 330px; }
 .process-canvas-panel, .inspector-panel { min-height: 650px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); box-shadow: var(--shadow-sm); }
 .process-canvas-panel { display: grid; grid-template-rows: auto minmax(440px, 1fr) auto; min-width: 0; overflow: hidden; }
 /* Accent: canvas toolbar has a subtle orange top-border to ground the panel */
@@ -1679,7 +1680,7 @@ input:focus, select:focus, textarea:focus {
 .inspector-empty > span { color: var(--muted); font-size: 33px; }.inspector-empty h2 { margin: 13px 0 5px; color: var(--ink-secondary); font-size: 16px; }.inspector-empty p { margin: 0; font-size: 11px; line-height: 1.6; }
 
 @media (max-width: 1120px) {
-  .process-layout { grid-template-columns: minmax(0, 1fr) 300px; }
+  .process-layout.has-inspector { grid-template-columns: minmax(0, 1fr) 300px; }
   .process-page { width: calc(100vw - 220px); margin-left: 0; padding-right: 20px; padding-left: 20px; }
   .project-properties-strip { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .project-property-metric, .project-property-metric.editable-metric { min-width: 0; }
