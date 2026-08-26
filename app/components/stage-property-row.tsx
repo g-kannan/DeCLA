@@ -29,21 +29,25 @@ export function StagePropertyRow({ property, onUpdate, onRemove }: StageProperty
   const useCombobox = propertyKindHasOptions(kind);
   const allowCustom = propertyKindAllowsCustom(kind);
   const hasMeta = kind === "cost" || kind === "duration" || kind === "sla" || kind === "rate-limit" || kind === "timeout";
+  const multiline = isMultilinePropertyKind(kind);
 
   return (
-    <div className={`property-row property-${kind}`}>
-      <div className="property-row-header">
-        <input
-          className="property-name-input"
-          value={property.name}
-          onChange={(event) => onUpdate(property.id, { name: event.target.value })}
-          aria-label="Property name"
-        />
-        <button type="button" onClick={() => onRemove(property.id)} aria-label={`Remove ${property.name} property`}>
-          ×
-        </button>
-      </div>
-      <div className={`property-row-value${hasMeta ? " has-meta" : ""}`}>
+    <div className={`property-row property-${kind}${hasMeta ? " has-meta" : ""}${multiline ? " is-multiline" : ""}`}>
+      <input
+        className="property-name-input"
+        value={property.name}
+        onChange={(event) => onUpdate(property.id, { name: event.target.value })}
+        aria-label="Property name"
+      />
+      <button
+        type="button"
+        className="property-remove-button"
+        onClick={() => onRemove(property.id)}
+        aria-label={`Remove ${property.name} property`}
+      >
+        ×
+      </button>
+      <div className="property-row-value">
         {isMultilinePropertyKind(kind) ? (
           <textarea
             className="property-value-textarea"

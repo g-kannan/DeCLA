@@ -1625,12 +1625,14 @@ function getEdgeSvgPath(
                 </div>
                 {stagePropertyPresets[selectedStage.iconKey as StageKind]?.length > 0 && (
                   <div className="stage-property-quick-add">
-                    <span>{stageQuickAddLabel(selectedStage.iconKey as StageKind)}</span>
-                    <div>
+                    <span className="property-quick-add-label">{stageQuickAddLabel(selectedStage.iconKey as StageKind)}</span>
+                    <div className="property-quick-add-chips">
                       {stagePropertyPresets[selectedStage.iconKey as StageKind]
                         .filter((preset) => !selectedStage.properties.some((property) => propertyKind(property) === preset.kind))
                         .map((preset) => (
-                          <button key={preset.kind} onClick={() => addProperty(preset)}>+ {preset.label}</button>
+                          <button key={preset.kind} type="button" className="property-quick-add-chip" onClick={() => addProperty(preset)}>
+                            + {preset.label}
+                          </button>
                         ))}
                     </div>
                   </div>
