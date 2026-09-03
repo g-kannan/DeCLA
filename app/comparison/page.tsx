@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/app/components/app-shell";
 import { readCanvasVersions, type CanvasStage, type CanvasVersion } from "@/lib/local-canvas";
 import { StageIcon } from "@/lib/stage-icons";
+import { propertyKind } from "@/lib/stage-properties";
 
 type StageChange = { key: string; change: "added" | "removed" | "modified" | "unchanged"; current: CanvasStage | null; proposed: CanvasStage | null };
 
@@ -32,14 +33,15 @@ function aggregateProperties(version: CanvasVersion) {
   version.stages.forEach((stage) => stage.properties.forEach((property) => values.set(property.name, [...(values.get(property.name) ?? []), property])));
   return [...values.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([name, properties]) => {
     const items = properties.map((property) => property.value);
+    const kind = propertyKind(properties[0]);
     const numbers = items.map(numericValue);
     const metadata = properties.find((property) => property.kind || property.unit || property.currency) ?? properties[0];
-    const allNumeric = numbers.every((item) => item !== null) && numbers.length > 0;
+    const allNumeric = kind !== "model" && numbers.every((item) => item !== null) && numbers.length > 0;
     const numericTotal = numbers.reduce<number>((sum, item) => sum + (item ?? 0), 0);
     const formattedTotal = numericTotal.toLocaleString(undefined, { maximumFractionDigits: 2 });
     const prefix = metadata.currency ? `${metadata.currency} ` : "";
     const suffix = metadata.unit ?? "";
-    return { name, items, value: allNumeric ? `${prefix}${formattedTotal}${suffix ? ` ${suffix}` : ""}` : [...new Set(items.filter(Boolean))].join(" · ") || "—", numeric: allNumeric ? numericTotal : null };
+    return { name, kind, items, value: allNumeric ? `${prefix}${formattedTotal}${suffix ? ` ${suffix}` : ""}` : [...new Set(items.filter(Boolean))].join(" · ") || "—", numeric: allNumeric ? numericTotal : null };
   });
 }
 
