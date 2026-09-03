@@ -83,7 +83,17 @@ export default function ComparisonPage() {
   const proposed = versions.find((version) => version.id === proposedId) ?? null;
   const currentProperties = useMemo(() => current ? aggregateProperties(current) : [], [current]);
   const proposedProperties = useMemo(() => proposed ? aggregateProperties(proposed) : [], [proposed]);
-  const propertyNames = useMemo(() => [...new Set([...currentProperties.map((item) => item.name), ...proposedProperties.map((item) => item.name)])].sort(), [currentProperties, proposedProperties]);
+  const propertyNames = useMemo(() => {
+    const names = [...new Set([...currentProperties.map((item) => item.name), ...proposedProperties.map((item) => item.name)])].sort();
+    return names.filter((name) => {
+      const before = currentProperties.find((item) => item.name === name);
+      const after = proposedProperties.find((item) => item.name === name);
+      if (!before || !after) return true;
+      if (before.kind === "model" || after.kind === "model") return before.value !== after.value;
+      if (before.numeric !== null && before.numeric !== undefined && after.numeric !== null && after.numeric !== undefined) return before.numeric !== after.numeric;
+      return before.value !== after.value;
+    });
+  }, [currentProperties, proposedProperties]);
   const differences = current && proposed ? stageChanges(current, proposed) : [];
   const changedStages = differences.filter((item) => item.change !== "unchanged");
 
