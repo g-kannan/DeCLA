@@ -124,12 +124,15 @@ export const stageConfigNotes: Partial<Record<StageKind, { title: string; descri
 };
 
 export const modelOptions = [
-  "gpt-4o",
-  "gpt-4o-mini",
-  "claude-sonnet-4",
-  "claude-haiku",
-  "gemini-2.0-flash",
-  "gemini-1.5-pro",
+  // OpenAI
+  "gpt-5.6-sol",
+  "gpt-5.6-terra",
+  // Anthropic
+  "claude-opus-5",
+  "claude-sonnet-5",
+  // Google Gemini
+  "gemini-3.8-flash",
+  "gemini-3.1-pro-preview",
 ];
 
 export const propertyValueOptions: Partial<Record<PropertyKind, string[]>> = {
