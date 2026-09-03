@@ -26,7 +26,7 @@ export function AppShell({ children, activeDataflowId }: AppShellProps) {
         <div className="sidebar-glow" aria-hidden="true" />
         <Link className="brand" href={`/canvas${suffix}`} aria-label="DeCLA home">
           <span className="brand-mark">D</span>
-          <span className="brand-copy"><strong>DeCLA</strong><small>Business process studio</small></span>
+          <span className="brand-copy"><strong>DeCLA</strong><small>Intelligent Workflow Canvas</small></span>
         </Link>
         <nav className="primary-nav" aria-label="Primary navigation">
           {navigation.map((item) => (
