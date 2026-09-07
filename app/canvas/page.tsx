@@ -25,6 +25,9 @@ const stageTypes: { label: string; key: StageKind; color: string }[] = [
   { label: "Alert", key: "alert", color: "#DC2626" },
   { label: "AI Agent", key: "agent", color: "#7C3AED" },
   { label: "Integration/Tool", key: "integration-tool", color: "#2563EB" },
+  { label: "Meeting", key: "meeting", color: "#7C3AED" },
+  { label: "Handoff", key: "handoff", color: "#2563EB" },
+  { label: "Wait/Queue", key: "wait-queue", color: "#0F766E" },
 ];
 
 const durationUnits = ["mins", "hours", "days"];
@@ -993,6 +996,37 @@ export default function DecisionCanvasPage() {
     return value.replace(/[&<>'"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&apos;", '"': "&quot;" })[character] ?? character);
   }
 
+  function escapeHtml(value: string) {
+    return value.replace(/[&<>'"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[character] ?? character);
+  }
+
+  function exportColor(value: string | undefined, fallback: string) {
+    return value && /^(#[0-9a-f]{3}|#[0-9a-f]{6})$/i.test(value) ? value : fallback;
+  }
+
+  function formatExportProperty(property: StageProperty, fallbackCurrency = budgetCurrency) {
+    const kind = propertyKind(property);
+    if (!property.value) return "Not set";
+    if (kind === "cost") {
+      const numeric = Number(property.value);
+      return Number.isFinite(numeric) ? `${property.currency || fallbackCurrency} ${numeric.toLocaleString()}` : property.value;
+    }
+    if (kind === "duration") return `${property.value} ${property.unit || "mins"}`;
+    return property.value;
+  }
+
+  function getExportSnapshots() {
+    return [
+      { key: "current", label: "Current draft", budgetCurrency, stages },
+      ...versions.map((version, index) => ({
+        key: `history-${index}`,
+        label: `Version ${version.version}`,
+        budgetCurrency: version.budgetCurrency || budgetCurrency,
+        stages: version.stages,
+      })),
+    ];
+  }
+
 function getNodeHandlePos(stage: CanvasStage, handleId?: string, isTarget?: boolean) {
   const isDecision = stage.iconKey === "decision";
   const nw = isDecision ? 210 : 188;
@@ -1047,7 +1081,7 @@ function getEdgeSvgPath(
   }
 }
 
-  function flowSvg(includeFullProperties: boolean = false) {
+  function flowSvg(includeFullProperties: boolean = false, iconHrefByKey?: Record<string, string>) {
     const title = escapeXml(processName.trim() || "Untitled project");
 
     // Project property summary row
@@ -1103,7 +1137,7 @@ function getEdgeSvgPath(
       const toPos = getNodeHandlePos(toStage, edge.toHandle, true);
 
       const pathD = getEdgeSvgPath(fromPos.x, fromPos.y, toPos.x, toPos.y, edge.lineType ?? edgeLineStyle);
-      const color = edge.color ?? "#94a3b8";
+      const color = exportColor(edge.color, "#94a3b8");
 
       const midX = fromPos.x + (toPos.x - fromPos.x) / 2;
       const midY = fromPos.y + (toPos.y - fromPos.y) / 2;
@@ -1130,7 +1164,11 @@ function getEdgeSvgPath(
       const isDecision = stage.iconKey === "decision";
       const x = stage.x ?? 0;
       const y = stage.y ?? 0;
-      const iconUrl = `${window.location.origin}/icons/stages/${stage.iconKey}.svg`;
+      const stageColor = exportColor(stage.color, "#2A2ACF");
+      const iconHref = iconHrefByKey
+        ? iconHrefByKey[stage.iconKey]
+        : `${window.location.origin}/icons/stages/${stage.iconKey}.svg`;
+      const iconRender = iconHref ? `<image href="${escapeXml(iconHref)}"` : "";
 
       if (isDecision) {
         const decisionIndex = stages.filter((s) => s.iconKey === "decision").findIndex((s) => s.id === stage.id) + 1;
@@ -1140,24 +1178,21 @@ function getEdgeSvgPath(
 
         const decisionPropsRender = includeFullProperties && stage.properties.length > 0
           ? stage.properties.map((p, pi) => {
-              const kind = propertyKind(p);
-              let valFormatted = p.value || "—";
-              if (kind === "cost" && p.value) valFormatted = `${p.currency || budgetCurrency} ${Number(p.value).toLocaleString()}`;
-              else if (kind === "duration" && p.value) valFormatted = `${p.value} ${p.unit || "mins"}`;
-              const line = `${escapeXml(p.name)}: ${escapeXml(valFormatted)}`;
-              return `<text x="${cx}" y="${cy + 34 + pi * 13}" text-anchor="middle" fill="#475569" font-size="8" font-family="Arial, sans-serif" font-weight="600">${line.length > 24 ? line.slice(0, 22) + "…" : line}</text>`;
+              const line = `${p.name}: ${formatExportProperty(p)}`.replace(/\s*\r?\n\s*/g, " · ");
+              const displayLine = line.length > 24 ? `${line.slice(0, 22)}…` : line;
+              return `<text x="${cx}" y="${cy + 34 + pi * 13}" text-anchor="middle" fill="#475569" font-size="8" font-family="Arial, sans-serif" font-weight="600">${escapeXml(displayLine)}</text>`;
             }).join("")
           : (stage.properties.length > 0 ? `<rect x="${cx - 24}" y="${cy + 32}" width="48" height="14" rx="3" fill="#f1f5f9"/><text x="${cx}" y="${cy + 42}" text-anchor="middle" fill="#64748b" font-size="8" font-family="Arial, sans-serif" font-weight="700">${stage.properties.length} ${stage.properties.length === 1 ? "prop" : "props"}</text>` : "");
 
         return [
           `<g>`,
-          `<polygon points="${innerPts}" fill="#fff7ed" stroke="${stage.color}" stroke-width="2.5"/>`,
+          `<polygon points="${innerPts}" fill="#fff7ed" stroke="${stageColor}" stroke-width="2.5"/>`,
           `<circle cx="${cx - 105}" cy="${cy}" r="4" fill="#cbd5e1" stroke="#fff" stroke-width="1.5"/>`,
           `<circle cx="${cx + 105}" cy="${cy}" r="4" fill="#cbd5e1" stroke="#fff" stroke-width="1.5"/>`,
           `<circle cx="${cx}" cy="${cy + 105}" r="4" fill="#cbd5e1" stroke="#fff" stroke-width="1.5"/>`,
           `<text x="${cx}" y="${cy - 48}" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="Arial, sans-serif" font-weight="800">d${decisionIndex}</text>`,
-          `<circle cx="${cx}" cy="${cy - 12}" r="17" fill="${stage.color}" fill-opacity=".12"/>`,
-          `<image href="${iconUrl}" x="${cx - 12}" y="${cy - 24}" width="24" height="24"/>`,
+          `<circle cx="${cx}" cy="${cy - 12}" r="17" fill="${stageColor}" fill-opacity=".12"/>`,
+          iconRender ? `${iconRender} x="${cx - 12}" y="${cy - 24}" width="24" height="24"/>` : "",
           `<text x="${cx}" y="${cy + 22}" text-anchor="middle" fill="#1e293b" font-size="11" font-family="Arial, sans-serif" font-weight="700">${escapeXml(stage.name || "Untitled")}</text>`,
           decisionPropsRender,
           `</g>`,
@@ -1171,27 +1206,24 @@ function getEdgeSvgPath(
         ? [
             `<rect x="${x + 12}" y="${y + 134}" width="164" height="${stage.properties.length * 16 + 6}" rx="5" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>`,
             ...stage.properties.map((p, pi) => {
-              const kind = propertyKind(p);
-              let valFormatted = p.value || "—";
-              if (kind === "cost" && p.value) valFormatted = `${p.currency || budgetCurrency} ${Number(p.value).toLocaleString()}`;
-              else if (kind === "duration" && p.value) valFormatted = `${p.value} ${p.unit || "mins"}`;
-              const line = `${escapeXml(p.name)}: ${escapeXml(valFormatted)}`;
-              return `<text x="${x + 18}" y="${y + 147 + pi * 16}" fill="#334155" font-size="8.5" font-family="Arial, sans-serif" font-weight="600">${line.length > 27 ? line.slice(0, 25) + "…" : line}</text>`;
+              const line = `${p.name}: ${formatExportProperty(p)}`.replace(/\s*\r?\n\s*/g, " · ");
+              const displayLine = line.length > 27 ? `${line.slice(0, 25)}…` : line;
+              return `<text x="${x + 18}" y="${y + 147 + pi * 16}" fill="#334155" font-size="8.5" font-family="Arial, sans-serif" font-weight="600">${escapeXml(displayLine)}</text>`;
             })
           ].join("")
         : (stage.properties.length > 0 ? `<rect x="${x + 16}" y="${y + 140}" width="78" height="16" rx="4" fill="#f1f5f9"/><text x="${x + 22}" y="${y + 152}" fill="#64748b" font-size="8.5" font-family="Arial, sans-serif" font-weight="700">${stage.properties.length} ${stage.properties.length === 1 ? "property" : "properties"}</text>` : "");
 
       return [
         `<g>`,
-        `<rect x="${x}" y="${y}" width="188" height="${cardH}" rx="12" fill="#ffffff" stroke="${stage.color}" stroke-width="1.8"/>`,
-        `<rect x="${x}" y="${y}" width="188" height="4" rx="2" fill="${stage.color}"/>`,
+        `<rect x="${x}" y="${y}" width="188" height="${cardH}" rx="12" fill="#ffffff" stroke="${stageColor}" stroke-width="1.8"/>`,
+        `<rect x="${x}" y="${y}" width="188" height="4" rx="2" fill="${stageColor}"/>`,
         `<circle cx="${x}" cy="${y + 95}" r="4" fill="#cbd5e1" stroke="#fff" stroke-width="1.5"/>`,
         `<circle cx="${x + 188}" cy="${y + 95}" r="4" fill="#cbd5e1" stroke="#fff" stroke-width="1.5"/>`,
         `<text x="${x + 16}" y="${y + 24}" fill="#94a3b8" font-size="9" font-family="Arial, sans-serif" font-weight="800">${String(index + 1).padStart(2, "0")}</text>`,
-        `<circle cx="${x + 32}" cy="${y + 52}" r="17" fill="${stage.color}" fill-opacity=".12"/>`,
-        `<image href="${iconUrl}" x="${x + 20}" y="${y + 40}" width="24" height="24"/>`,
+        `<circle cx="${x + 32}" cy="${y + 52}" r="17" fill="${stageColor}" fill-opacity=".12"/>`,
+        iconRender ? `${iconRender} x="${x + 20}" y="${y + 40}" width="24" height="24"/>` : "",
         `<text x="${x + 16}" y="${y + 94}" fill="#1e293b" font-size="12" font-family="Arial, sans-serif" font-weight="700">${escapeXml(stage.name || "Untitled")}</text>`,
-        `<text x="${x + 16}" y="${y + 112}" fill="${stage.color}" font-size="9.5" font-family="Arial, sans-serif" font-weight="700">${escapeXml(stage.type)}</text>`,
+        `<text x="${x + 16}" y="${y + 112}" fill="${stageColor}" font-size="9.5" font-family="Arial, sans-serif" font-weight="700">${escapeXml(stage.type)}</text>`,
         `<text x="${x + 16}" y="${y + 126}" fill="#64748b" font-size="9" font-family="Arial, sans-serif">${escapeXml(stage.platform)}</text>`,
         propsRender,
         `</g>`,
@@ -1265,8 +1297,24 @@ function getEdgeSvgPath(
   }
 
   function flowHtml() {
-    const title = escapeXml(processName.trim() || "Untitled project");
-    const svgContent = flowSvg(true);
+    const rawTitle = processName.trim() || "Untitled project";
+    const title = escapeHtml(rawTitle);
+    const snapshots = getExportSnapshots();
+    const stageSequences = Array.from(new Set(snapshots.flatMap((snapshot) => snapshot.stages.map((_, index) => String(index + 1).padStart(2, "0")))));
+    const versionFilters = snapshots.map((snapshot) => `<button type="button" class="filter-button" data-filter-group="version" data-filter-value="${snapshot.key}" aria-pressed="false">${escapeHtml(snapshot.label)}</button>`).join("");
+    const sequenceFilters = stageSequences.map((sequence) => `<button type="button" class="filter-button" data-filter-group="sequence" data-filter-value="${sequence}" aria-pressed="false">${sequence}</button>`).join("");
+
+    const tableRows = snapshots.flatMap((snapshot) => snapshot.stages.flatMap((stage, index) => {
+      const sequence = String(index + 1).padStart(2, "0");
+      const stageName = stage.name || "Untitled stage";
+      const row = (propertyName: string, value: string) => {
+        const searchText = [snapshot.label, sequence, stageName, propertyName, value].join(" ");
+        return `<tr data-row data-version="${snapshot.key}" data-sequence="${sequence}" data-search="${escapeHtml(searchText)}"><td>${escapeHtml(snapshot.label)}</td><td class="sequence-cell">${sequence}</td><td>${escapeHtml(stageName)}</td><td>${escapeHtml(propertyName)}</td><td>${escapeHtml(value).replace(/\r?\n|\r/g, "<br>")}</td></tr>`;
+      };
+
+      if (stage.properties.length === 0) return [row("—", "No properties defined")];
+      return stage.properties.map((property) => row(property.name, formatExportProperty(property, snapshot.budgetCurrency)));
+    })).join("");
 
     return `<!DOCTYPE html>
 <html lang="en">
@@ -1275,26 +1323,114 @@ function getEdgeSvgPath(
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${title} - 2D Decision Canvas</title>
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #f8fafc; color: #0f172a; margin: 0; padding: 24px; }
-    .container { max-width: 1300px; margin: 0 auto; }
-    .header-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid #e2e8f0; }
-    .doc-title { font-size: 22px; font-weight: 800; color: #0f172a; margin: 0; }
-    .doc-meta { font-size: 12px; color: #64748b; font-weight: 600; }
-    .canvas-container { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; overflow-x: auto; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
-    .canvas-container svg { width: 100%; height: auto; display: block; }
-    @media print { body { background: #ffffff; padding: 0; } .canvas-container { border: 0; box-shadow: none; } }
+    :root { color-scheme: light; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #0f172a; background: #f8fafc; }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 32px 20px 56px; background: #f8fafc; }
+    .container { max-width: 1400px; margin: 0 auto; }
+    .header-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid #cbd5e1; }
+    .doc-kicker { margin: 0 0 6px; color: #d45605; font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+    .doc-title { margin: 0; color: #0f172a; font-size: clamp(24px, 4vw, 34px); line-height: 1.1; letter-spacing: -.04em; }
+    .doc-meta { flex: 0 0 auto; color: #475569; font-size: 13px; font-weight: 700; text-align: right; }
+    .controls { display: grid; gap: 16px; margin-bottom: 18px; padding: 16px; border: 1px solid #cbd5e1; border-radius: 10px; background: #ffffff; box-shadow: 0 1px 3px rgba(15,23,42,.06); }
+    .search-group { display: grid; gap: 7px; }
+    .search-group label, fieldset legend { color: #334155; font-size: 12px; font-weight: 800; }
+    .search-row { display: flex; gap: 8px; }
+    .search-input { min-width: 0; flex: 1; min-height: 44px; padding: 9px 12px; border: 1px solid #94a3b8; border-radius: 7px; color: #0f172a; background: #ffffff; font: inherit; }
+    .search-input:focus-visible, .filter-button:focus-visible, .search-button:focus-visible, .clear-button:focus-visible { outline: 3px solid rgba(42,42,207,.25); outline-offset: 2px; }
+    .search-button, .clear-button, .filter-button { min-height: 44px; padding: 8px 13px; border: 1px solid #94a3b8; border-radius: 7px; color: #334155; background: #ffffff; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+    .search-button { border-color: #2A2ACF; color: #ffffff; background: #2A2ACF; }
+    .clear-button { color: #475569; }
+    fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
+    fieldset legend { margin-bottom: 8px; }
+    .filter-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+    .filter-button:hover, .clear-button:hover { border-color: #2A2ACF; color: #2A2ACF; background: #eef2ff; }
+    .filter-button[aria-pressed="true"] { border-color: #2A2ACF; color: #ffffff; background: #2A2ACF; }
+    .result-count { margin: 0 0 10px; color: #64748b; font-size: 12px; }
+    .table-wrap { overflow-x: auto; border: 1px solid #cbd5e1; border-radius: 10px; background: #ffffff; box-shadow: 0 1px 3px rgba(15,23,42,.08); }
+    table { width: 100%; min-width: 920px; border-collapse: collapse; table-layout: fixed; }
+    caption { padding: 14px 16px; color: #475569; font-size: 13px; text-align: left; caption-side: top; }
+    th, td { padding: 12px 16px; border-top: 1px solid #e2e8f0; vertical-align: top; text-align: left; font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
+    thead th { border-top: 0; color: #ffffff; background: #2A2ACF; font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+    thead th:nth-child(1) { width: 16%; }
+    thead th:nth-child(2) { width: 10%; }
+    thead th:nth-child(3) { width: 27%; }
+    thead th:nth-child(4) { width: 20%; }
+    tbody tr:nth-child(even) { background: #f8fafc; }
+    tbody td { color: #0f172a; white-space: pre-wrap; }
+    tbody td:first-child, tbody td:nth-child(2), tbody td:nth-child(3), tbody td:nth-child(4) { color: #334155; font-weight: 700; }
+    .sequence-cell { color: #2A2ACF !important; font-variant-numeric: tabular-nums; }
+    .empty-value { color: #64748b; font-style: italic; font-weight: 400; }
+    .no-results { margin: 0; padding: 18px; border: 1px solid #cbd5e1; border-radius: 10px; color: #64748b; background: #ffffff; }
+    [hidden] { display: none !important; }
+    @media (max-width: 560px) { body { padding: 22px 14px 40px; } .header-row { display: block; } .doc-meta { margin-top: 12px; text-align: left; } .search-row { flex-wrap: wrap; } .search-input { flex-basis: 100%; } .table-wrap { border-radius: 8px; } }
+    @media print { body { padding: 0; background: #ffffff; } .controls, .result-count { display: none; } .table-wrap { border: 0; box-shadow: none; } thead th { color: #0f172a; background: #e2e8f0; } }
   </style>
 </head>
 <body>
   <div class="container">
     <div class="header-row">
-      <h1 class="doc-title">${title}</h1>
-      <span class="doc-meta">${stages.length} stages · ${totalProperties} properties</span>
+      <div><p class="doc-kicker">DeCLA workflow export</p><h1 class="doc-title">${title}</h1></div>
+      <span class="doc-meta">${stages.length} stages · ${totalProperties} properties · ${snapshots.length} versions</span>
     </div>
-    <div class="canvas-container">
-      ${svgContent}
+    <form class="controls" id="filter-form">
+      <div class="search-group"><label for="stage-search">Search stages, properties, and values</label><div class="search-row"><input id="stage-search" class="search-input" type="search" placeholder="Search by stage name, property, value, sequence, or version" autocomplete="off"><button class="search-button" type="submit">Search</button><button class="clear-button" id="clear-search" type="button">Clear</button></div></div>
+      <fieldset><legend>Filter by version</legend><div class="filter-buttons"><button type="button" class="filter-button" data-filter-group="version" data-filter-value="all" aria-pressed="true">All versions</button>${versionFilters}</div></fieldset>
+      <fieldset><legend>Filter by stage sequence</legend><div class="filter-buttons"><button type="button" class="filter-button" data-filter-group="sequence" data-filter-value="all" aria-pressed="true">All stages</button>${sequenceFilters}</div></fieldset>
+    </form>
+    <p class="result-count" id="result-count" role="status" aria-live="polite"></p>
+    <div class="table-wrap">
+      <table>
+        <caption>Stage properties — one row per property</caption>
+        <thead><tr><th scope="col">Version</th><th scope="col">Sequence</th><th scope="col">Stage name</th><th scope="col">Property</th><th scope="col">Value</th></tr></thead>
+        <tbody>${tableRows || `<tr><td colspan="5" class="empty-value">No stages have been added to this canvas.</td></tr>`}</tbody>
+      </table>
     </div>
+    <p class="no-results" id="no-results" hidden>No rows match the current search and filters.</p>
   </div>
+  <script>
+    (() => {
+      const form = document.getElementById('filter-form');
+      const search = document.getElementById('stage-search');
+      const clear = document.getElementById('clear-search');
+      const count = document.getElementById('result-count');
+      const noResults = document.getElementById('no-results');
+      const rows = Array.from(document.querySelectorAll('[data-row]'));
+      const buttons = Array.from(document.querySelectorAll('.filter-button'));
+      let activeVersion = 'all';
+      let activeSequence = 'all';
+
+      function applyFilters() {
+        const query = search.value.trim().toLowerCase();
+        let visible = 0;
+        rows.forEach((row) => {
+          const matchesVersion = activeVersion === 'all' || row.dataset.version === activeVersion;
+          const matchesSequence = activeSequence === 'all' || row.dataset.sequence === activeSequence;
+          const matchesSearch = !query || (row.dataset.search || '').toLowerCase().includes(query);
+          const matches = matchesVersion && matchesSequence && matchesSearch;
+          row.hidden = !matches;
+          if (matches) visible += 1;
+        });
+        count.textContent = 'Showing ' + visible + ' of ' + rows.length + ' rows';
+        noResults.hidden = visible !== 0 || rows.length === 0;
+        buttons.forEach((button) => {
+          const group = button.dataset.filterGroup;
+          const value = button.dataset.filterValue;
+          const selected = group === 'version' ? value === activeVersion : value === activeSequence;
+          button.setAttribute('aria-pressed', String(selected));
+        });
+      }
+
+      form.addEventListener('submit', (event) => { event.preventDefault(); applyFilters(); });
+      search.addEventListener('input', applyFilters);
+      clear.addEventListener('click', () => { search.value = ''; search.focus(); applyFilters(); });
+      buttons.forEach((button) => button.addEventListener('click', () => {
+        if (button.dataset.filterGroup === 'version') activeVersion = button.dataset.filterValue || 'all';
+        if (button.dataset.filterGroup === 'sequence') activeSequence = button.dataset.filterValue || 'all';
+        applyFilters();
+      }));
+      applyFilters();
+    })();
+  </script>
 </body>
 </html>`;
   }
@@ -1309,6 +1445,38 @@ function getEdgeSvgPath(
     URL.revokeObjectURL(url);
     setShowExportMenu(false);
     setMessage("HTML document exported");
+  }
+
+  function escapeCsv(value: string) {
+    return `"${value.replace(/"/g, '""')}"`;
+  }
+
+  function exportCsv() {
+    const rows = [["Version", "Sequence", "Stage name", "Property", "Value"]];
+    getExportSnapshots().forEach((snapshot) => {
+      snapshot.stages.forEach((stage, index) => {
+        const sequence = String(index + 1).padStart(2, "0");
+        const stageName = stage.name || "Untitled stage";
+        if (stage.properties.length === 0) {
+          rows.push([snapshot.label, sequence, stageName, "—", "No properties defined"]);
+          return;
+        }
+        stage.properties.forEach((property) => {
+          rows.push([snapshot.label, sequence, stageName, property.name, formatExportProperty(property, snapshot.budgetCurrency)]);
+        });
+      });
+    });
+
+    const payload = `\uFEFF${rows.map((row) => row.map(escapeCsv).join(",")).join("\r\n")}`;
+    const blob = new Blob([payload], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = exportFileName("csv");
+    link.click();
+    URL.revokeObjectURL(url);
+    setShowExportMenu(false);
+    setMessage("CSV exported");
   }
 
   function loadExample(exampleKey: "return-request" | "forecast" = "return-request") {
@@ -1408,7 +1576,7 @@ function getEdgeSvgPath(
             <div className="export-menu-wrap" ref={examplesMenuRef}><button className="secondary-button" onClick={() => toggleExclusiveMenu(showExamplesMenu, setShowExamplesMenu)}>Examples <span className="button-caret">⌄</span></button>{showExamplesMenu && <div className="floating-menu export-menu"><small>LOAD EXAMPLE WORKFLOW</small><button onClick={() => { loadExample("return-request"); setShowExamplesMenu(false); }}>Customer return request</button><button onClick={() => { loadExample("forecast"); setShowExamplesMenu(false); }}>Weekly forecast analysis</button></div>}</div>
             <button className="secondary-button" onClick={() => setMessage("Share link copied to clipboard")}>Share</button>
             <button className="secondary-button" onClick={saveDraft}>Save version</button>
-            <input ref={importInputRef} className="hidden-file-input" type="file" accept=".decla" onChange={handleImport} /><button className="secondary-button" onClick={() => importInputRef.current?.click()}>Import file</button><button className="primary-button" onClick={saveDeclaFile}>Save to File</button><div className="export-menu-wrap" ref={exportMenuRef}><button className="secondary-button" onClick={() => toggleExclusiveMenu(showExportMenu, setShowExportMenu)}>Export <span className="button-caret">⌄</span></button>{showExportMenu && <div className="floating-menu export-menu"><small>EXPORT CANVAS</small><button onClick={exportSvg}>SVG image <span>.svg</span></button><button onClick={exportPng}>PNG image <span>.png</span></button></div>}</div><button className="clear-canvas-button" onClick={clearWorkspace} disabled={!Boolean(processName || projectStatus !== "draft" || environment !== "development" || goLiveDate || projectBudget || projectSla || versionTags.length || stages.length || versions.length)}>Clear workspace</button>
+            <input ref={importInputRef} className="hidden-file-input" type="file" accept=".decla" onChange={handleImport} /><button className="secondary-button" onClick={() => importInputRef.current?.click()}>Import file</button><button className="primary-button" onClick={saveDeclaFile}>Save to File</button><div className="export-menu-wrap" ref={exportMenuRef}><button className="secondary-button" onClick={() => toggleExclusiveMenu(showExportMenu, setShowExportMenu)}>Export <span className="button-caret">⌄</span></button>{showExportMenu && <div className="floating-menu export-menu"><small>EXPORT CANVAS</small><button onClick={exportSvg}>SVG image <span>.svg</span></button><button onClick={exportPng}>PNG image <span>.png</span></button><button onClick={exportHtml}>HTML document <span>.html</span></button><button onClick={exportCsv}>CSV table <span>.csv</span></button></div>}</div><button className="clear-canvas-button" onClick={clearWorkspace} disabled={!Boolean(processName || projectStatus !== "draft" || environment !== "development" || goLiveDate || projectBudget || projectSla || versionTags.length || stages.length || versions.length)}>Clear workspace</button>
           </div>
         </header>
 

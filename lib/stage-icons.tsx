@@ -44,6 +44,7 @@ function iconForStage(stage: StageIconData) {
   if (searchable.includes("databricks")) return icons.databricks;
   if (searchable.includes("iceberg")) return icons.iceberg;
   if (searchable.includes("human-action") || searchable.includes("human action")) return icons.humanAction;
+  if (searchable.includes("meeting")) return icons.humanAction;
   if (searchable.includes("business-rule") || searchable.includes("business rule")) return icons.businessRule;
   if (searchable.includes("llm") || searchable.includes("large language model")) return icons.llm;
   if (searchable.includes("user-interface") || searchable.includes("user interface") || searchable.includes("streamlit") || searchable.includes("gradio")) return icons.userInterface;
@@ -51,6 +52,8 @@ function iconForStage(stage: StageIconData) {
   if (searchable.includes("feedback-loop") || searchable.includes("feedback loop")) return icons.feedbackLoop;
   if (searchable.includes("alert")) return icons.alert;
   if (searchable.includes("integration-tool") || searchable.includes("integration tool")) return icons.integrationTool;
+  if (searchable.includes("handoff")) return icons.integrationTool;
+  if (searchable.includes("wait-queue") || searchable.includes("wait/queue") || searchable.includes("wait queue")) return icons.feedbackLoop;
   if (searchable.includes("agent")) return icons.agent;
   if (searchable.includes("snowsql") || searchable.includes("terminal") || searchable.includes("script")) {
     return icons.terminal;

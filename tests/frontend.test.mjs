@@ -107,12 +107,18 @@ test("frontend exposes AI workflow stage types with dedicated icons", async () =
   assert.match(canvas, /label: "LLM", key: "llm"/);
   assert.match(canvas, /label: "User Interface", key: "user-interface"/);
   assert.match(canvas, /label: "Decision", key: "decision"/);
+  assert.match(canvas, /label: "Meeting", key: "meeting"/);
+  assert.match(canvas, /label: "Handoff", key: "handoff"/);
+  assert.match(canvas, /label: "Wait\/Queue", key: "wait-queue"/);
   assert.match(canvas, /"Streamlit"/);
   assert.match(iconLibrary, /human-action\.svg/);
   assert.match(iconLibrary, /business-rule\.svg/);
   assert.match(iconLibrary, /llm\.svg/);
   assert.match(iconLibrary, /user-interface\.svg/);
   assert.match(iconLibrary, /decision\.svg/);
+  assert.match(iconLibrary, /searchable\.includes\("meeting"\)/);
+  assert.match(iconLibrary, /searchable\.includes\("handoff"\)/);
+  assert.match(iconLibrary, /searchable\.includes\("wait-queue"\)/);
   assert.match(localCanvas, /stage\.iconKey === "analytics"/);
 });
 
@@ -197,6 +203,31 @@ test("export dropdown overlays the project properties strip", async () => {
   const globals = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   assert.match(globals, /\.export-menu-wrap \{[^}]*z-index: 30;/s);
   assert.match(globals, /\.project-properties-strip \{[^}]*z-index: 15;/s);
+});
+
+test("frontend exposes a plain HTML stage property table", async () => {
+  const canvas = await readFile(new URL("../app/canvas/page.tsx", import.meta.url), "utf8");
+  assert.match(canvas, /function exportHtml/);
+  assert.match(canvas, /function exportCsv/);
+  assert.match(canvas, /escapeCsv/);
+  assert.match(canvas, /text\/csv;charset=utf-8/);
+  assert.doesNotMatch(canvas, /loadExportIcons/);
+    assert.match(canvas, /function getExportSnapshots/);
+    assert.match(canvas, /getExportSnapshots\(\)/);
+  assert.match(canvas, /Current draft/);
+  assert.match(canvas, /Version \$\{version\.version\}/);
+  assert.match(canvas, /data-filter-group="version"/);
+  assert.match(canvas, /data-filter-group="sequence"/);
+  assert.match(canvas, /id="stage-search"/);
+  assert.match(canvas, /function applyFilters/);
+  assert.match(canvas, /Stage name/);
+  assert.match(canvas, /Property/);
+  assert.match(canvas, /Value/);
+  assert.match(canvas, /Sequence/);
+  assert.match(canvas, /Version/);
+  assert.match(canvas, /one row per property/);
+  assert.match(canvas, /HTML document <span>\.html<\/span>/);
+  assert.match(canvas, /CSV table <span>\.csv<\/span>/);
 });
 
 test("frontend automatically formats decision count badges d1, d2 on addition and render", async () => {

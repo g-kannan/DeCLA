@@ -32,6 +32,9 @@ export type CanvasStageIconKey =
   | "alert"
   | "agent"
   | "integration-tool"
+  | "meeting"
+  | "handoff"
+  | "wait-queue"
   | "analytics";
 
 export type CanvasStage = {

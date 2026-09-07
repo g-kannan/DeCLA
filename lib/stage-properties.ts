@@ -105,6 +105,24 @@ export const stagePropertyPresets: Record<StageKind, PropertyPreset[]> = {
     { label: "Rate limit", kind: "rate-limit", unit: "req/min" },
     { label: "Idempotency", kind: "idempotency" },
   ],
+  meeting: [
+    { label: "Owner", kind: "owner" },
+    { label: "Duration", kind: "duration", unit: "hours" },
+    { label: "Action type", kind: "action-type" },
+    { label: "SLA", kind: "sla", unit: "hours" },
+  ],
+  handoff: [
+    { label: "Owner", kind: "owner" },
+    { label: "Direction", kind: "direction" },
+    { label: "SLA", kind: "sla", unit: "hours" },
+    { label: "Audit required", kind: "audit-required" },
+  ],
+  "wait-queue": [
+    { label: "Trigger", kind: "trigger" },
+    { label: "Timeout", kind: "timeout", unit: "hours" },
+    { label: "Exit condition", kind: "exit-condition" },
+    { label: "SLA", kind: "sla", unit: "hours" },
+  ],
 };
 
 export const stageConfigNotes: Partial<Record<StageKind, { title: string; description: string }>> = {
@@ -121,6 +139,9 @@ export const stageConfigNotes: Partial<Record<StageKind, { title: string; descri
   alert: { title: "Alert configuration", description: "Severity, channel, and recipients are stored as stage properties." },
   agent: { title: "AI Agent configuration", description: "Model, tools, orchestration, and autonomy are stored as stage properties." },
   "integration-tool": { title: "Integration configuration", description: "Integration type, auth, and rate limits are stored as stage properties." },
+  meeting: { title: "Meeting configuration", description: "Participants, agenda, duration, and follow-up expectations are stored as stage properties." },
+  handoff: { title: "Handoff configuration", description: "Ownership transfer, destination, acknowledgement, and audit details are stored as stage properties." },
+  "wait-queue": { title: "Wait/Queue configuration", description: "Queue trigger, timeout, release condition, and service target are stored as stage properties." },
 };
 
 export const modelOptions = [
@@ -311,6 +332,18 @@ export function defaultStageProperties(iconKey: StageKind, createId: (prefix: st
       { label: "Temperature", kind: "temperature", defaultValue: "0.2" },
     ],
     "integration-tool": [{ label: "Integration type", kind: "integration-type" }],
+    meeting: [
+      { label: "Owner", kind: "owner" },
+      { label: "Duration", kind: "duration", unit: "hours" },
+    ],
+    handoff: [
+      { label: "Owner", kind: "owner" },
+      { label: "Direction", kind: "direction" },
+    ],
+    "wait-queue": [
+      { label: "Trigger", kind: "trigger" },
+      { label: "Timeout", kind: "timeout", unit: "hours" },
+    ],
   };
 
   return (defaults[iconKey] ?? []).map((preset) => ({
@@ -338,6 +371,9 @@ export function stageQuickAddLabel(iconKey: StageKind) {
     alert: "Alert fields",
     agent: "AI Agent fields",
     "integration-tool": "Integration fields",
+    meeting: "Meeting fields",
+    handoff: "Handoff fields",
+    "wait-queue": "Wait/Queue fields",
   };
   return labels[iconKey] ?? "Stage fields";
 }
